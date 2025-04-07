@@ -1,0 +1,52 @@
+buildType:
+    default: release
+    choices:
+        release:
+            short: Release
+            buildType: Release
+            long: Without Debug Outputs
+            settings:
+                DEBUG_USB_UART: OFF
+                PICO_STDIO_USB: OFF
+        debug:
+            short: Debug
+            buildType: Release
+            long: With Debug Outputs
+            settings:
+                DEBUG_USB_UART: ON
+                PICO_STDIO_USB: ON
+
+hwvar:
+    default: sd2psx
+    choices:
+        sd2psx:
+            short: SD2PSX
+            long: SD2PSX Hardware
+            settings:
+                VARIANT: SD2PSX
+        pmc+:
+            short: PMC+
+            long: PMC+ Hardware
+            settings:
+                VARIANT: PMC+
+        PSXMemCard:
+            short: PSXMemCard
+            long: PSXMemCard Hardware
+            settings:
+                VARIANT: PSXMemCard
+        pmczero:
+            short: PMCZero
+            long: PMCZero Hardware
+            settings:
+                VARIANT: PMCZero
+        sd2psxlite:
+            short: SD2PSXlite
+            long: SD2PSX without PSRAM and OLED
+            settings:
+                VARIANT: SD2PSXlite
+        flippermce:
+            short: FlipperMCE
+            long: FlipperMCE for Gamecube
+            settings:
+                VARIANT: FlipperMCE
+

@@ -18,6 +18,8 @@
 #define LOG_LEVEL_CARD_CONF  2
 #define LOG_LEVEL_PS1_MC     2
 #define LOG_LEVEL_PS1_MMCE   4
+#define LOG_LEVEL_GC_CM      2
+#define LOG_LEVEL_GC_MC      4
 
 #define LOG_ERROR 1
 #define LOG_WARN 2

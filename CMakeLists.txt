@@ -35,6 +35,7 @@ add_subdirectory(database)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
+add_subdirectory(src/gc)
 if (SD2PSX_WITH_PSRAM)
     add_subdirectory(src/psram)
 endif()
@@ -46,6 +47,7 @@ add_executable(${TARGET_NAME}
     src/main.c
     src/ps2.c
     src/ps1.c
+    src/gc.c
 
     src/game_db/game_db.c
     src/wear_leveling/wear_leveling.c
@@ -75,6 +77,7 @@ target_link_libraries(${TARGET_NAME}
         sd2psx_common
         ps1_card
         ps2_card
+        gc_card
         sd_fat
 )
 
@@ -139,7 +142,10 @@ if (SD2PSX_WITH_LED)
     target_compile_definitions(sd2psx_common PUBLIC "WITH_LED=1")
     target_sources(sd2psx_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
+endif()
 
+if (FLIPPERMCE)
+    target_compile_definitions(sd2psx_common PUBLIC "FLIPPER=1")
 endif()
 
 set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)

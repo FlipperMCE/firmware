@@ -23,17 +23,24 @@
 #include "psram/psram.h"
 #endif
 
-#include "ps1/ps1_memory_card.h"
-#include "ps1/ps1_cardman.h"
+#if FLIPPER
+    #include "card_emu/gc_memory_card.h"
+    //#include "mmceman/gc_mmceman.h"
+    //#include "mmceman/gc_mmceman_commands.h"
+    #include "gc_cardman.h"
+    #include "gc.h"
+#else
+    #include "ps1/ps1_memory_card.h"
+    #include "ps1/ps1_cardman.h"
 
-#include "ps2.h"
-#include "ps1.h"
+    #include "ps2.h"
+    #include "ps1.h"
 
-#include "card_emu/ps2_memory_card.h"
-#include "mmceman/ps2_mmceman.h"
-#include "mmceman/ps2_mmceman_commands.h"
-#include "ps2_cardman.h"
-
+    #include "card_emu/ps2_memory_card.h"
+    #include "mmceman/ps2_mmceman.h"
+    #include "mmceman/ps2_mmceman_commands.h"
+    #include "ps2_cardman.h"
+#endif
 
 #include "game_db/game_db.h"
 
@@ -85,7 +92,9 @@ static void debug_task(void) {
                 QPRINTF("Resetting");
                 watchdog_reboot(0, 0, 0);
             }
-        } else if (in[0] == 'c') {
+        }
+        #if !FLIPPER
+        else if (in[0] == 'c') {
             if ((in[1] == 'h') && (in[2] == '+')) {
                 DPRINTF("Received Channel Up!\n");
                 if (settings_get_mode() == MODE_PS2) {
@@ -136,6 +145,7 @@ static void debug_task(void) {
                 }
             }
         }
+        #endif
     }
 #endif
 }
@@ -147,7 +157,11 @@ int main() {
     check_bootloader_reset();
 
     printf("prepare...\n");
+#if FLIPPER
+    int mhz = 260;
+#else
     int mhz = 240;
+#endif
     set_sys_clock_khz(mhz * 1000, true);
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
@@ -176,6 +190,15 @@ int main() {
 #endif
 
     while (1) {
+#if FLIPPER
+        gc_init();
+        while (1) {
+            debug_task();
+            if (!gc_task())
+                break;
+        }
+        gc_deinit();
+#else
         if (settings_get_mode() == MODE_PS2) {
             ps2_init();
             settings_load_sd();
@@ -196,5 +219,6 @@ int main() {
             }
             ps1_deinit();
         }
+#endif
     }
 }
