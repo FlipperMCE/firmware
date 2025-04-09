@@ -2,10 +2,15 @@
 
 #include <debug.h>
 #include <game_db/game_db.h>
+#if FLIPPER
+#include <gc/card_emu/gc_mc_data_interface.h>
+#include <gc/gc_cardman.h>
+#else
 #include <ps1/ps1_mmce.h>
 #include <ps2/card_emu/ps2_mc_data_interface.h>
 #include <ps2/mmceman/ps2_mmceman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
+#endif
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
 #include <src/core/lv_obj_style.h>
@@ -24,6 +29,7 @@
 #include "input.h"
 #include "keystore.h"
 #include "oled.h"
+#if !FLIPPER
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
@@ -31,6 +37,7 @@
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
+#endif
 #include "settings.h"
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
@@ -167,7 +174,9 @@ static void update_bar(void) {
     prev_progress = current_progress;
     line_points[1].x = DISPLAY_WIDTH * current_progress / 100;
     lv_line_set_points(g_progress_bar, line_points, 2);
+    #if !FLIPPER
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
+    #endif
 }
 
 static void flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
@@ -247,7 +256,11 @@ static void gui_tick(void) {
 static void reload_card_cb(int progress, bool done) {
     current_progress = progress;
     if (done) {
+#if !FLIPPER
         ps2_cardman_set_progress_cb(NULL);
+#else
+        gc_cardman_set_progress_cb(NULL);
+#endif
         UI_GOTO_SCREEN(scr_main);
         input_flush();
         waiting_card = false;
@@ -333,6 +346,7 @@ static void evt_scr_main(lv_event_t *event) {
         // TODO: if there was a card op recently (1s timeout?), should refuse to switch
         // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
+#if !FLIPPER
             if (settings_get_mode() == MODE_PS1) {
                 switch (key) {
                     case INPUT_KEY_PREV: ps1_mmce_prev_ch(true); break;
@@ -348,6 +362,7 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
             }
+#endif
 
             if (switching_card == 1) {
                 switching_card_timeout = time_us_64() + 1500 * 1000;
@@ -523,9 +538,9 @@ static void evt_switch_to_ps1(lv_event_t *event) {
 static void evt_switch_variant(lv_event_t *event) {
     (void)event;
     int variant = (intptr_t)event->user_data;
-
+#if !FLIPPER
     ps2_cardman_set_variant(variant);
-
+#endif
     update_main_header();
 
     {
@@ -1005,7 +1020,11 @@ static void update_activity(void) {
     static bool write_occured = false;
     static bool visible = false;
     uint64_t time = time_us_64();
+#if !FLIPPER
     write_occured |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
+#else
+    write_occured |= (gc_mc_data_interface_write_occured());
+#endif
     if ((time - last_update) > 200 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (write_occured) {
@@ -1078,6 +1097,7 @@ void gui_request_refresh(void) {
     oled_update_last_action_time();
 }
 
+#if !FLIPPER
 void gui_do_ps1_card_switch(void) {
     log(LOG_INFO, "switching the card now!\n");
 
@@ -1103,6 +1123,22 @@ void gui_do_ps2_card_switch(void) {
 
     waiting_card = true;
 }
+#else
+
+void gui_do_gc_card_switch(void) {
+    current_progress = 0;
+
+    update_bar();
+
+    UI_GOTO_SCREEN(scr_card_switch);
+
+    oled_update_last_action_time();
+
+    gc_cardman_set_progress_cb(reload_card_cb);
+
+    waiting_card = true;
+}
+#endif
 
 void gui_task(void) {
     input_update_display(g_navbar);
@@ -1114,7 +1150,9 @@ void gui_task(void) {
         update_bar();
 
         oled_update_last_action_time();
-    } else if (settings_get_mode() == MODE_PS1) {
+    }
+#if ! FLIPPER
+    else if (settings_get_mode() == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
@@ -1239,7 +1277,64 @@ void gui_task(void) {
     } else {
 
     }
+#else
+    static int displayed_card_idx = -1;
+    static int displayed_card_channel = -1;
+    static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
+    static char card_idx_s[8];
+    static char card_channel_s[8];
+
+    lv_label_set_text(main_header, "GC Memory Card");
+
+    if (displayed_card_idx != gc_cardman_get_idx() || displayed_card_channel != gc_cardman_get_channel() || cardman_state != gc_cardman_get_state() ||
+        refresh_gui) {
+        displayed_card_idx = gc_cardman_get_idx();
+        displayed_card_channel = gc_cardman_get_channel();
+        folder_name = gc_cardman_get_folder_name();
+        cardman_state = gc_cardman_get_state();
+        memset(card_name, 0, sizeof(card_name));
+
+        switch (cardman_state) {
+            case GC_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
+            case GC_CM_STATE_NAMED:
+            case GC_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
+            case GC_CM_STATE_NORMAL:
+            default:
+                snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                break;
+        }
+
+        snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+        lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+        card_config_read_channel_name(folder_name,
+                                        cardman_state == GC_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                        card_channel_s,
+                                        card_name,
+                                        sizeof(card_name));
+
+        //if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
+        //    game_db_get_current_name(card_name);
+        //}
+        //if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
+        //    game_db_get_game_name(folder_name, card_name);
+        //}
+
+        if (card_name[0]) {
+            lv_label_set_text(src_main_title_lbl, card_name);
+        } else {
+            lv_label_set_text(src_main_title_lbl, "");
+        }
+    }
+
+    //if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
+    //    switching_card = 0;
+    //    gui_do_ps1_card_switch();
+    //}
+    refresh_gui = false;
+    update_activity();
+#endif
 
     gui_tick();
-    // log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
 }
