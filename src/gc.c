@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "hardware/timer.h"
 #include "led.h"
+#include "mmceman/gc_mmceman.h"
 #include "pico/multicore.h"
 #if WITH_GUI
 #include "gui.h"
@@ -40,10 +41,12 @@ void gc_init(void) {
 
     log(LOG_INFO, "DONE! (0 us)\n");
     gui_init();
-    oled_init();
+
+    gui_do_gc_card_switch();
 }
 
 bool gc_task(void) {
+    gc_mmceman_task();
     gc_cardman_task();
 #if WITH_GUI
     gui_task();

@@ -2,6 +2,7 @@
 
 #include <debug.h>
 #include <game_db/game_db.h>
+#include <gc/mmceman/gc_mmceman.h>
 #if FLIPPER
 #include <gc/card_emu/gc_mc_data_interface.h>
 #include <gc/gc_cardman.h>
@@ -82,10 +83,8 @@ static struct {
 } vcomh_options[3];
 
 static int have_oled;
-static int switching_card;
 static bool waiting_card;
 static int current_progress;
-static uint64_t switching_card_timeout;
 static bool refresh_gui;
 static bool installing_exploit;
 
@@ -176,6 +175,8 @@ static void update_bar(void) {
     lv_line_set_points(g_progress_bar, line_points, 2);
     #if !FLIPPER
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
+    #else
+    lv_label_set_text(g_progress_text, gc_cardman_get_progress_text());
     #endif
 }
 
@@ -362,11 +363,15 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
             }
+#else
+            switch (key) {
+                case INPUT_KEY_PREV: gc_mmceman_prev_ch(true); break;
+                case INPUT_KEY_NEXT: gc_mmceman_next_ch(true); break;
+                case INPUT_KEY_BACK: gc_mmceman_prev_idx(true); break;
+                case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
+            }
 #endif
 
-            if (switching_card == 1) {
-                switching_card_timeout = time_us_64() + 1500 * 1000;
-            }
         }
     }
 }
@@ -537,8 +542,8 @@ static void evt_switch_to_ps1(lv_event_t *event) {
 
 static void evt_switch_variant(lv_event_t *event) {
     (void)event;
+    #if !FLIPPER
     int variant = (intptr_t)event->user_data;
-#if !FLIPPER
     ps2_cardman_set_variant(variant);
 #endif
     update_main_header();
@@ -1202,10 +1207,6 @@ void gui_task(void) {
             }
         }
 
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps1_card_switch();
-        }
         refresh_gui = false;
         update_activity();
     } else if (settings_get_mode() == MODE_PS2){
@@ -1268,72 +1269,65 @@ void gui_task(void) {
             refresh_gui = false;
         }
 
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps2_card_switch();
-        }
-
         update_activity();
     } else {
 
     }
 #else
-    static int displayed_card_idx = -1;
-    static int displayed_card_channel = -1;
-    static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
-    static char card_idx_s[8];
-    static char card_channel_s[8];
+    else {
+        static int displayed_card_idx = -1;
+        static int displayed_card_channel = -1;
+        static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
+        static char card_idx_s[8];
+        static char card_channel_s[8];
 
-    lv_label_set_text(main_header, "GC Memory Card");
+        lv_label_set_text(main_header, "GC Memory Card");
 
-    if (displayed_card_idx != gc_cardman_get_idx() || displayed_card_channel != gc_cardman_get_channel() || cardman_state != gc_cardman_get_state() ||
-        refresh_gui) {
-        displayed_card_idx = gc_cardman_get_idx();
-        displayed_card_channel = gc_cardman_get_channel();
-        folder_name = gc_cardman_get_folder_name();
-        cardman_state = gc_cardman_get_state();
-        memset(card_name, 0, sizeof(card_name));
+        if (displayed_card_idx != gc_cardman_get_idx() || displayed_card_channel != gc_cardman_get_channel() || cardman_state != gc_cardman_get_state() ||
+            refresh_gui) {
+            displayed_card_idx = gc_cardman_get_idx();
+            displayed_card_channel = gc_cardman_get_channel();
+            folder_name = gc_cardman_get_folder_name();
+            cardman_state = gc_cardman_get_state();
+            memset(card_name, 0, sizeof(card_name));
 
-        switch (cardman_state) {
-            case GC_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
-            case GC_CM_STATE_NAMED:
-            case GC_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
-            case GC_CM_STATE_NORMAL:
-            default:
-                snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                break;
+            switch (cardman_state) {
+                case GC_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
+                case GC_CM_STATE_NAMED:
+                case GC_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
+                case GC_CM_STATE_NORMAL:
+                default:
+                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    break;
+            }
+
+            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+            card_config_read_channel_name(folder_name,
+                                            cardman_state == GC_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                            card_channel_s,
+                                            card_name,
+                                            sizeof(card_name));
+
+            //if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
+            //    game_db_get_current_name(card_name);
+            //}
+            //if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
+            //    game_db_get_game_name(folder_name, card_name);
+            //}
+
+            if (card_name[0]) {
+                lv_label_set_text(src_main_title_lbl, card_name);
+            } else {
+                lv_label_set_text(src_main_title_lbl, "");
+            }
         }
 
-        snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-        lv_label_set_text(scr_main_channel_lbl, card_channel_s);
-
-        card_config_read_channel_name(folder_name,
-                                        cardman_state == GC_CM_STATE_BOOT ? "BootCard" : folder_name,
-                                        card_channel_s,
-                                        card_name,
-                                        sizeof(card_name));
-
-        //if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
-        //    game_db_get_current_name(card_name);
-        //}
-        //if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
-        //    game_db_get_game_name(folder_name, card_name);
-        //}
-
-        if (card_name[0]) {
-            lv_label_set_text(src_main_title_lbl, card_name);
-        } else {
-            lv_label_set_text(src_main_title_lbl, "");
-        }
+        refresh_gui = false;
+        update_activity();
     }
-
-    //if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-    //    switching_card = 0;
-    //    gui_do_ps1_card_switch();
-    //}
-    refresh_gui = false;
-    update_activity();
 #endif
 
     gui_tick();
