@@ -305,9 +305,14 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         reset = 0;
 
-        res = gc_receive(&cmd);
+        res = gc_receiveFirst(&cmd);
         if (res == RECEIVE_RESET) {
             continue;
+        }
+        if (res == RECEIVE_EXIT) {
+            mc_exit_response = 1;
+            mc_exit_request = 0;
+            return;
         }
 
         switch (cmd) {
