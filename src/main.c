@@ -183,7 +183,9 @@ int main() {
 #if WITH_PSRAM
     psram_init();
 #endif
+#if !FLIPPER
     game_db_init();
+#endif
 
 #if WITH_LED
     led_init();
