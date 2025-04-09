@@ -175,6 +175,7 @@ void __time_critical_func(gc_mc_data_interface_setup_read_page)(uint32_t page, b
         page_p->page_state = PAGE_READ_REQ;
         critical_section_exit(&crit);
 
+        gc_mc_data_interface_start_dma(page_p);
 
     } else {
         log(LOG_WARN, "%s Addr out of bounds: %u\n", __func__, page);
@@ -437,11 +438,6 @@ void __time_critical_func(gc_mc_data_interface_task)(void) {
         delay_reuired = op_fill_status() > 0;
     } else {
 #if WITH_PSRAM
-    for (int i = 0; i < READ_CACHE; i++) {
-        if (readpages[i].page_state == PAGE_READ_REQ && !dma_in_progress) {
-            gc_mc_data_interface_start_dma(&readpages[i]);
-        }
-    }
     gc_dirty_task();
     busy_cycle = dma_in_progress;
 #endif
