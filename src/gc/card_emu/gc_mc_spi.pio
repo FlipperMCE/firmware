@@ -36,6 +36,7 @@
     set pins  1                       ; configure DAT pin for output
     set x, 6                          ; prepare to send 8 bits (7 down to 0)
 .wrap_target
+    jmp !osre bit_loop
     pull block                        ; get first byte ready
     wait 1 irq 6                      ; wait for clock program to signal start
 bit_loop:
@@ -47,7 +48,6 @@ bit_loop:
     set x, 6
     wait 1 gpio PIN_PSX_CLK
     wait 0 gpio PIN_PSX_CLK
-    jmp !osre bit_loop
 .wrap                                 ; get next byte
 
 .program clock_probe
