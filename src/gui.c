@@ -344,8 +344,6 @@ static void evt_scr_main(lv_event_t *event) {
             lv_event_stop_bubbling(event);
         }
 
-        // TODO: if there was a card op recently (1s timeout?), should refuse to switch
-        // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
 #if !FLIPPER
             if (settings_get_mode() == MODE_PS1) {
@@ -461,10 +459,12 @@ static void update_main_header(void) {
     }
 }
 
+#if !FLIPPER
 static void evt_go_back(lv_event_t *event) {
     ui_menu_go_back(menu);
     lv_event_stop_bubbling(event);
 }
+#endif
 
 static void evt_screen_flip(lv_event_t *event) {
     bool current = settings_get_display_flipped();
@@ -475,6 +475,7 @@ static void evt_screen_flip(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+#if !FLIPPER
 static void evt_ps1_autoboot(lv_event_t *event) {
     bool current = settings_get_ps1_autoboot();
     settings_set_ps1_autoboot(!current);
@@ -577,6 +578,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
 }
+#endif
 
 static void evt_set_display_timeout(lv_event_t *event) {
     uint8_t display_timeout = (intptr_t)event->user_data;
@@ -710,6 +712,7 @@ static void create_menu_screen(void) {
 
     lv_obj_t *cont;
 
+#if !FLIPPER
     /* deploy submenu */
     lv_obj_t *mode_page = ui_menu_subpage_create(menu, "Mode");
     {
@@ -743,6 +746,7 @@ static void create_menu_screen(void) {
         ui_label_create(cont, "PS2");
         ui_menu_set_load_page_event(menu, cont, ps2_switch_warn);
     }
+#endif
 
     /* display / auto off submenu */
     lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
@@ -829,7 +833,7 @@ static void create_menu_screen(void) {
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
     }
-
+#if !FLIPPER
     /* ps1 */
     lv_obj_t *ps1_page = ui_menu_subpage_create(menu, "PS1 Settings");
     {
@@ -947,6 +951,7 @@ static void create_menu_screen(void) {
         }
 #endif
     }
+#endif
 
     /* Info submenu */
     lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
@@ -971,6 +976,7 @@ static void create_menu_screen(void) {
     /* Main menu */
     main_page = ui_menu_subpage_create(menu, NULL);
     {
+#if !FLIPPER
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Boot Mode");
         lbl_mode = ui_label_create(cont, (settings_get_mode() == MODE_PS1) ? "PS1" : "PS2");
@@ -985,6 +991,7 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "PS2 Settings");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, ps2_page);
+#endif
 
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Display");
