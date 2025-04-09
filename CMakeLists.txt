@@ -30,12 +30,16 @@ message(STATUS "Building ${TARGET_NAME}")
 
 
 # Add all subdirectories for sub-targets
-
-add_subdirectory(database)
 add_subdirectory(src/version)
-add_subdirectory(src/ps2)
-add_subdirectory(src/ps1)
-add_subdirectory(src/gc)
+
+if (FLIPPERMCE)
+    add_subdirectory(src/gc)
+else()
+    add_subdirectory(database)
+    add_subdirectory(src/ps2)
+    add_subdirectory(src/ps1)
+endif()
+
 if (SD2PSX_WITH_PSRAM)
     add_subdirectory(src/psram)
 endif()
@@ -43,29 +47,48 @@ add_subdirectory(ext/)
 
 # SD2PSX Main Lib
 
-add_executable(${TARGET_NAME}
-    src/main.c
-    src/ps2.c
-    src/ps1.c
-    src/gc.c
 
-    src/game_db/game_db.c
-    src/wear_leveling/wear_leveling.c
-    src/wear_leveling/wear_leveling_rp2040_flash.c
 
-    ext/fnv/hash_64a.c
-)
+if (FLIPPERMCE)
+    add_executable(${TARGET_NAME}
+        src/main.c
+        src/gc.c
 
-target_compile_definitions(
-    ${TARGET_NAME} PUBLIC
-    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
-)
+        #src/game_db/game_db.c
+        src/wear_leveling/wear_leveling.c
+        src/wear_leveling/wear_leveling_rp2040_flash.c
 
-target_include_directories(${TARGET_NAME} PUBLIC
-    ext/fnv
-)
+        ext/fnv/hash_64a.c
+    )
 
-target_link_libraries(${TARGET_NAME}
+    target_link_libraries(${TARGET_NAME}
+    PRIVATE
+        pico_stdlib
+        pico_multicore
+        hardware_pio
+        hardware_i2c
+        hardware_flash
+        #gamedb
+        sd2psx_version
+        sd2psx_common
+        gc_card
+        sd_fat
+    )
+
+else()
+    add_executable(${TARGET_NAME}
+        src/main.c
+        src/ps2.c
+        src/ps1.c
+
+        src/game_db/game_db.c
+        src/wear_leveling/wear_leveling.c
+        src/wear_leveling/wear_leveling_rp2040_flash.c
+
+        ext/fnv/hash_64a.c
+    )
+
+    target_link_libraries(${TARGET_NAME}
     PRIVATE
         pico_stdlib
         pico_multicore
@@ -77,11 +100,22 @@ target_link_libraries(${TARGET_NAME}
         sd2psx_common
         ps1_card
         ps2_card
-        gc_card
         sd_fat
+    )
+endif()
+
+target_compile_definitions(
+    ${TARGET_NAME} PUBLIC
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
 )
 
-add_dependencies(${TARGET_NAME} gamedb)
+target_include_directories(${TARGET_NAME} PUBLIC
+    ext/fnv
+)
+
+if(NOT FLIPPERMCE)
+    add_dependencies(${TARGET_NAME} gamedb)
+endif()
 set_target_properties(${TARGET_NAME} PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 # Common Lib
