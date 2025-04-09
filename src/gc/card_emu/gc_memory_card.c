@@ -1,4 +1,5 @@
 #include "card_emu/gc_mc_data_interface.h"
+#include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "gc_cardman.h"
 #include "debug.h"
@@ -38,6 +39,10 @@ static pio_t cmd_reader, dat_writer, clock_probe;
 static uint8_t interrupt_enable = 0;
 static uint8_t card_state;
 
+#define DMA_WAIT_CHAN 4
+static dma_channel_config dma_wait_config;
+static uint8_t _;
+
 
 static int memcard_running;
 volatile bool gc_card_active;
@@ -59,9 +64,7 @@ static void __time_critical_func(drain_fifos)(void) {
     reset = 1;
 }
 
-
 static void __time_critical_func(reset_pio)(void) {
-
     pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
     pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
@@ -73,6 +76,21 @@ static void __time_critical_func(reset_pio)(void) {
 //    pio_sm_clear_fifos(pio0, dat_writer.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm) );
+
+
+    dma_wait_config = dma_channel_get_default_config(DMA_WAIT_CHAN);
+    channel_config_set_read_increment(&dma_wait_config, false);
+    channel_config_set_write_increment(&dma_wait_config, false); // Changed to false to write to same location
+    channel_config_set_transfer_data_size(&dma_wait_config, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_wait_config, pio_get_dreq(pio0, cmd_reader.sm, false));
+    dma_channel_configure(
+        DMA_WAIT_CHAN,                 // Channel to be configured
+        &dma_wait_config,         // The configuration we just created
+        &_,            // Single byte destination address
+        &pio0->rxf[cmd_reader.sm],  // Source address
+        0x00000200 - 0x10,                    // Number of transfers
+        false                   // Start immediately
+    );
 
     reset = 1;
 }
@@ -199,13 +217,20 @@ static void __time_critical_func(gc_mc_read)(void) {
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
 
-    gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
+    if (pio_sm_is_rx_fifo_full(pio0, cmd_reader.sm)) {
+        DPRINTF("FIFO full\n");
+    }
+    dma_channel_start(DMA_WAIT_CHAN);
 
     // Setup data read
-    // Receive 128 bytes of dummy data
-    for (i = 0; i < (0x00000200 - 0x10); i++) {
-        gc_receiveOrNextCmd(&_);
+    gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
+
+    if (pio_sm_is_rx_fifo_full(pio0, cmd_reader.sm)) {
+        DPRINTF("FIFO full\n");
     }
+
+    while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
+
     volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page(offset_u32/512U);
     if (page->page_state != PAGE_DATA_AVAILABLE) {
         log(LOG_ERROR, "%s: page %u not available\n", __func__, offset_u32/512U);
