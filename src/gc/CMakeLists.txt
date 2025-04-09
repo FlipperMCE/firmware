@@ -1,6 +1,6 @@
 
 add_library(gc_card STATIC
-                #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman.c
                 #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_commands.c
                 #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_debug.c
                 #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_fs.c
