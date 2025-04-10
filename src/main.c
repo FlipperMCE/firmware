@@ -157,11 +157,9 @@ int main() {
     check_bootloader_reset();
 
     printf("prepare...\n");
-#if FLIPPER
-    int mhz = 260;
-#else
+
     int mhz = 240;
-#endif
+
     set_sys_clock_khz(mhz * 1000, true);
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
