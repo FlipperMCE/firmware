@@ -247,7 +247,7 @@ static void __time_critical_func(gc_mc_read)(void) {
         gc_mc_respond(page->data[i]);
     }
 
-    DPRINTF("R: %08x / %i \n", offset_u32, i);
+    //DPRINTF("R: %08x / %i \n", offset_u32, i);
 }
 
 
@@ -273,7 +273,7 @@ static void __time_critical_func(gc_mc_write)(void) {
     while (ret != RECEIVE_RESET && i < 512) {
         ret = gc_receive(&data[i++]);
     }
-    DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
+    //DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
     gc_mc_data_interface_write_mc(offset_u32, data, 128);
     sleep_us(2);
     gpio_put(PIN_PSX_ACK, 0);
@@ -289,10 +289,71 @@ static void __time_critical_func(mc_erase_sector)(void) {
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
 
     gc_mc_data_interface_erase(offset_u32);
-    DPRINTF("E: %08x\n", offset_u32);
+    //DPRINTF("E: %08x\n", offset_u32);
     sleep_us(2);
     gpio_put(PIN_PSX_ACK, 0);
+}
 
+
+static void __time_critical_func(mc_get_dev_id)(void) {
+    gc_mc_respond(0x38); // out byte 5
+    gc_mc_respond(0x42); // out byte 5
+    gc_mc_respond(0xFF); // out byte 5
+    gc_mc_respond(0xFF); // out byte 5
+}
+
+static void __time_critical_func(mc_set_game_id)(void) {
+    uint8_t id[10] = {};
+    for (int i = 0; i < 10; i++) {
+        gc_receiveOrNextCmd(&id[i]);
+    }
+    /*DPRINTF("ID: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+            id[0], id[1], id[2], id[3], id[4], id[5], id[6], id[7], id[8], id[9]);*/
+}
+
+static uint8_t name[65] = { 0x00 };
+static void __time_critical_func(mc_set_game_name)(void) {
+    for (int i = 0; i < 64; i++) {
+        gc_receiveOrNextCmd(&name[i]);
+        if (name[i] == 0x00) {
+            break;
+        }
+    }
+    name[64] = 0x00;
+    DPRINTF("NAME: %s\n", name);
+}
+
+static void __time_critical_func(mc_get_game_name)(void) {
+    uint8_t i = 0;
+    while (name[i] != 0x00 && i < 64) {
+        gc_mc_respond(name[i++]);
+    }
+    for (; i < 64; i++) {
+        gc_mc_respond(0x00);
+    }
+    gc_mc_respond(0x00);
+}
+
+static void __time_critical_func(mc_mce_cmd)(void) {
+    uint8_t cmd;
+    gc_receiveOrNextCmd(&cmd);
+    switch (cmd) {
+        case 0x00:
+            mc_get_dev_id();
+            break;
+        case 0x11:
+            mc_set_game_id();
+            break;
+        case 0x12:
+            mc_get_game_name();
+            break;
+        case 0x13:
+            mc_set_game_name();
+            break;
+        default:
+            DPRINTF("Unknown command: %02x ", cmd);
+            break;
+    }
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
@@ -306,13 +367,14 @@ static void __time_critical_func(mc_main_loop)(void) {
         reset = 0;
 
         res = gc_receiveFirst(&cmd);
-        if (res == RECEIVE_RESET) {
-            continue;
-        }
-        if (res == RECEIVE_EXIT) {
-            mc_exit_response = 1;
-            mc_exit_request = 0;
-            return;
+        if (res != RECEIVE_OK) {
+            if (res == RECEIVE_RESET) {
+                continue;
+            } else if (res == RECEIVE_EXIT) {
+                mc_exit_response = 1;
+                mc_exit_request = 0;
+                return;
+            }
         }
 
         switch (cmd) {
@@ -333,6 +395,9 @@ static void __time_critical_func(mc_main_loop)(void) {
                 break;
             case 0x89:
                 card_state = 0x41;
+                break;
+            case 0x8B:
+                mc_mce_cmd();
                 break;
             case 0xF1:
                 mc_erase_sector();
