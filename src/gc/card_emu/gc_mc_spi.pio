@@ -43,11 +43,12 @@ bit_loop:
     out pins, 1                       ; output next bit
     wait 1 gpio PIN_PSX_CLK
     wait 0 gpio PIN_PSX_CLK
-    jmp x-- bit_loop                  ; continue until byte complete
-    out pins, 1                       ; output next bit
-    set x, 6
-    wait 1 gpio PIN_PSX_CLK
-    wait 0 gpio PIN_PSX_CLK
+;    jmp !osre bit_loop
+;    jmp x-- bit_loop                  ; continue until byte complete
+;    out pins, 1                       ; output next bit
+;    set x, 6
+;    wait 1 gpio PIN_PSX_CLK
+;    wait 0 gpio PIN_PSX_CLK
 .wrap                                 ; get next byte
 
 .program clock_probe
