@@ -23,3 +23,6 @@ static inline uint64_t __time_critical_func(RAM_time_us_64)() {
 }
 
 bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_name, size_t folder_name_size);
+uint16_t swap16(uint16_t data);
+uint32_t swap32(uint32_t data);
+uint64_t swap64(uint64_t data);
