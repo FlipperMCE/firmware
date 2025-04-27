@@ -10,28 +10,20 @@
 
 
 #define ERASE_SECTORS 16
-#define CARD_SIZE     (8 * 1024 * 1024)
 
-#define XOR8(a) (a[0] ^ a[1] ^ a[2] ^ a[3] ^ a[4] ^ a[5] ^ a[6] ^ a[7])
-#define ARG8(a) a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]
+#define DMA_WAIT_CHAN 4
+
+#define _ROTL(v,s) \
+    (s&31 ? ((uint32_t)v<<s)|((uint32_t)v>>(0x20-s)) : v)
 
 enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
 
-extern uint8_t term;
-extern uint32_t read_sector, write_sector, erase_sector;
-extern uint8_t writetmp[528];
-extern int is_write, is_dma_read;
-extern uint32_t readptr, writeptr;
-extern uint8_t *eccptr;
-extern volatile bool card_active;
-
-extern const uint8_t EccTable[];
+extern int unlock_stage;
+extern uint8_t card_state;
 
 extern uint8_t gc_receive(uint8_t *cmd);
 extern uint8_t gc_receiveFirst(uint8_t *cmd);
 extern void __time_critical_func(gc_mc_respond)(uint8_t ch);
-//extern void __time_critical_func(gc_read_mc)(uint32_t addr, void *buf, size_t sz, void (*cb)(void));
-//extern void __time_critical_func(gc_write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define gc_receiveOrNextCmd(cmd)          \
     if (gc_receive(cmd) == RECEIVE_RESET) {\

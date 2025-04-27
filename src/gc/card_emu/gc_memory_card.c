@@ -9,9 +9,7 @@
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
-//#include "mmceman/ps2_mmceman.h"
-//#include "mmceman/ps2_mmceman_commands.h"
-//#include "mmceman/ps2_mmceman_fs.h"
+#include "gc_unlock.h"
 #include "gc_mc_spi.pio.h"
 #include "pico/time.h"
 
@@ -26,6 +24,10 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GC_MC, level, fmt, ##x)
 #endif
 
+#define GC_MC_LATENCY_CYCLES ( 0x100 )
+#define GC_MC_MB_CARD_SIZE   ( 8 )
+#define GC_MC_SECTOR_SIZE    ( 0x2000 )
+
 static uint64_t gc_us_startup;
 
 static volatile int reset;
@@ -37,9 +39,8 @@ typedef struct {
 
 static pio_t cmd_reader, dat_writer, clock_probe;
 static uint8_t interrupt_enable = 0;
-static uint8_t card_state;
+uint8_t card_state;
 
-#define DMA_WAIT_CHAN 4
 static dma_channel_config dma_wait_config;
 static uint8_t _;
 
@@ -56,14 +57,6 @@ static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint 
     }
 }
 
-static void __time_critical_func(drain_fifos)(void) {
-    pio_sm_clear_fifos(pio0, cmd_reader.sm);
-//    pio_sm_clear_fifos(pio0, dat_writer.sm);
-    RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-
-    reset = 1;
-}
-
 static void __time_critical_func(reset_pio)(void) {
     pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
     pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
@@ -73,7 +66,6 @@ static void __time_critical_func(reset_pio)(void) {
     pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
-//    pio_sm_clear_fifos(pio0, dat_writer.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm) );
 
@@ -88,7 +80,7 @@ static void __time_critical_func(reset_pio)(void) {
         &dma_wait_config,         // The configuration we just created
         &_,            // Single byte destination address
         &pio0->rxf[cmd_reader.sm],  // Source address
-        0x00000200 - 0x10,                    // Number of transfers
+        GC_MC_LATENCY_CYCLES,                    // Number of transfers
         false                   // Start immediately
     );
 
@@ -174,6 +166,21 @@ void __time_critical_func(gc_mc_respond)(uint8_t ch) {
 }
 
 
+static uint8_t mc_probe_id[2] = {
+    0x00, 0x00
+};
+
+static void mc_generateId(void) {
+    uint32_t size = 8 * GC_MC_MB_CARD_SIZE;
+    uint32_t latency = __builtin_ctz(GC_MC_LATENCY_CYCLES) - __builtin_ctz(0x4);
+    uint32_t sector_size = __builtin_ctz(GC_MC_SECTOR_SIZE) - __builtin_ctz(0x2000);
+    uint32_t value = (size & 0xfc) |
+        ((_ROTL(latency << 2, 6))) |
+        ((_ROTL(sector_size << 2, 9)));
+    mc_probe_id[0] = (value >> 8) & 0xFF;
+    mc_probe_id[1] = value & 0xFF;
+}
+
 /*
 * This function is called when the memory card is probed.
 * It is returning essential card stuff:
@@ -193,9 +200,9 @@ static void __time_critical_func(mc_probe)(void) {
     gc_receiveOrNextCmd(&_);
     gc_mc_respond(0x00); // out byte 4
     gc_receiveOrNextCmd(&_);
-    gc_mc_respond(0x07); // out byte 5 --> should give us 128 cycles delay
+    gc_mc_respond(mc_probe_id[0]); // out byte 5
     gc_receiveOrNextCmd(&_);
-    gc_mc_respond(0x40); // out byte 6
+    gc_mc_respond(mc_probe_id[1]); // out byte 6
     gc_receiveOrNextCmd(&_);
 }
 
@@ -225,24 +232,13 @@ static void __time_critical_func(gc_mc_read)(void) {
     // Setup data read
     gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
 
-    if (pio_sm_is_rx_fifo_full(pio0, cmd_reader.sm)) {
-        DPRINTF("FIFO full\n");
-    }
-
-    while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
-
     volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page(offset_u32/512U);
     if (page->page_state != PAGE_DATA_AVAILABLE) {
         log(LOG_ERROR, "%s: page %u not available\n", __func__, offset_u32/512U);
         return;
     }
 
-    if (!pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)) {
-        DPRINTF("FIFO not empty\n");
-    }
-    for (i = 0; i < 0x10; i++) {
-        gc_receiveOrNextCmd(&_);
-    }
+    while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
     for (i = 0; i < 0x200; i++) {
         gc_mc_respond(page->data[i]);
     }
@@ -273,8 +269,8 @@ static void __time_critical_func(gc_mc_write)(void) {
     while (ret != RECEIVE_RESET && i < 512) {
         ret = gc_receive(&data[i++]);
     }
-    //DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
-    gc_mc_data_interface_write_mc(offset_u32, data, 128);
+    DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
+    gc_mc_data_interface_write_mc(offset_u32, data, (i-1));
     sleep_us(2);
     gpio_put(PIN_PSX_ACK, 0);
 }
@@ -289,7 +285,7 @@ static void __time_critical_func(mc_erase_sector)(void) {
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
 
     gc_mc_data_interface_erase(offset_u32);
-    //DPRINTF("E: %08x\n", offset_u32);
+    DPRINTF("E: %08x\n", offset_u32);
     sleep_us(2);
     gpio_put(PIN_PSX_ACK, 0);
 }
@@ -358,10 +354,17 @@ static void __time_critical_func(mc_mce_cmd)(void) {
 
 static void __time_critical_func(mc_main_loop)(void) {
     card_state = 0x41;
+
+    DPRINTF("Latency is %u\n", GC_MC_LATENCY_CYCLES);
     while (1) {
 
         uint8_t cmd = 0;
         uint8_t res = 0;
+
+        if (unlock_stage >= 4) {
+            card_state = 0x41;
+        }
+
         while (!reset) {};
 
         reset = 0;
@@ -383,7 +386,10 @@ static void __time_critical_func(mc_main_loop)(void) {
                 mc_probe();
                 break;
             case 0x52:
-                gc_mc_read();
+                if (card_state & 0x40)
+                    gc_mc_read();
+                else
+                    mc_unlock();
                 break;
             case 0x81:
                 gc_receive(&interrupt_enable);
@@ -391,10 +397,10 @@ static void __time_critical_func(mc_main_loop)(void) {
             case 0x83:
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
-                card_state = 0x41;
+                //card_state = 0x41;
                 break;
             case 0x89:
-                card_state = 0x41;
+                //card_state = 0x41;
                 break;
             case 0x8B:
                 mc_mce_cmd();
@@ -515,6 +521,7 @@ void gc_memory_card_enter(void) {
     if (memcard_running)
         return;
 
+    mc_generateId();
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
