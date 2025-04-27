@@ -56,6 +56,7 @@ static int card_idx;
 static int card_chan;
 static bool needs_update;
 static uint32_t card_size;
+static uint8_t card_enc;
 static cardman_cb_t cardman_cb;
 static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static char cardhome[CARD_HOME_LENGTH];
@@ -198,101 +199,110 @@ static void ensuredirs(void) {
         fatal("error creating directories");
 }
 
+static void checksum(uint8_t *buff,int32_t len,uint16_t *cs1,uint16_t *cs2)
+{
+    uint16_t csum = 0;
+    uint16_t inv_csum = 0;
+
+    for (size_t i = 0; i < len; i += 2)
+    {
+      uint16_t d = swap16(*(uint16_t*)(&buff[i]));
+      csum += d;
+      inv_csum += (uint16_t)(d ^ 0xffff);
+    }
+
+    csum = swap16(csum);
+    inv_csum = swap16(inv_csum);
+
+    if (csum == 0xffff)
+      csum = 0;
+    if (inv_csum == 0xffff)
+      inv_csum = 0;
+    *cs1 = csum;
+    *cs2 = inv_csum;
+
+    printf("cs1: %04X cs2: %04X\n", *cs1, *cs2);
+}
+
+
 static void genblock(size_t pos, void *vbuf) {
-    /*
-    uint8_t *buf = vbuf;
+    #define GC_POS_HEADER   0x0000
+    #define GC_POS_DIRENT_1 0x4000 - 0x200
+    #define GC_POS_DIRENT_2 0x6000 - 0x200
+    #define GC_POS_FAT_1    0x6000
+    #define GC_POS_FAT_2    0x8000
+    #define GC_CARDSIZE_MB  (card_size / (1024 * 1024))
+    #define GC_CARDSIZE     (GC_CARDSIZE_MB*8)
+    #define GC_FREEBLOCKS   ((((GC_CARDSIZE<<20)>>3)/0x0002000)-5)
+    if (pos == GC_POS_HEADER) {
+        uint8_t *buf = vbuf;
+        memset(buf, 0xFF, 512);
+        memset(buf, 0x00, 12); // serial
+        buf[12] = 0x00; // time
+        buf[13] = 0x00; // time
+        buf[14] = 0x00; // time
+        buf[15] = 0x00; // time
+        buf[16] = 0x00; // time
+        buf[17] = 0x00; // time
+        buf[18] = 0x00; // time
+        buf[19] = 0x00; // time
+        buf[20] = 0x00; // sram bias
+        buf[21] = 0x00; // sram bias
+        buf[22] = 0x00; // sram bias
+        buf[23] = 0x00; // sram bias
+        buf[24] = 0x00; // lang
+        buf[25] = 0x00; // lang
+        buf[26] = 0x00; // lang
+        buf[27] = 0x01; // lang
+        buf[28] = 0x00; // dtv status
+        buf[29] = 0x00; // dtv status
+        buf[30] = 0x00; // dtv status
+        buf[31] = 0x00; // dtv status
+        buf[32] = 0x00; // device id
+        buf[33] = 0x00; // device id
+        buf[34] = GC_CARDSIZE >> 8; // size msb
+        buf[35] = GC_CARDSIZE & 0xFF; // size lsb
+        buf[36] = 0x00; // encoding
+        buf[37] = card_enc; // encoding
+        buf[0x200-0x6] = 0x00; // updated
+        buf[0x200-0x5] = 0x00; // updated
+        checksum(buf, 508, (uint16_t*)&buf[0x200-0x4], (uint16_t*)&buf[0x200-0x2]);
 
-    uint8_t ind_cnt = 1;
-
-#define CARD_SIZE_MB         (card_size / (1024 * 1024))
-#define CARD_CLUST_CNT       (card_size / 1024)
-#define CARD_FAT_LENGTH_PAD  (CARD_CLUST_CNT * 4)
-#define CARD_SUPERBLOCK_SIZE (16)
-#define CARD_IND_FAT_SIZE    (CARD_SIZE_MB * 16)
-#define CARD_IFC_SIZE        (CARD_SIZE_MB > 64 ? 2 : 1)
-#define CARD_ALLOC_START     ((CARD_FAT_LENGTH_PAD / 1024) + CARD_IFC_SIZE + 16)
-#define CARD_ALLOC_CLUSTERS  (CARD_CLUST_CNT - ((CARD_ALLOC_START - 1) + 16))
-#define CARD_FAT_LENGTH      (CARD_ALLOC_CLUSTERS * 4)
-
-
-    switch (CARD_SIZE_MB) {
-        case 1:
-        case 2:
-        case 4:
-        case 8:
-        case 16:
-        case 32: ind_cnt = 1; break;
-        case 64: ind_cnt = 2; break;
-        case 128: ind_cnt = 4; break;
+        return;
+    } else if ((pos == GC_POS_DIRENT_1) || (pos == GC_POS_DIRENT_2)) {
+        uint8_t *buf = vbuf;
+        memset(buf, 0xFF, 512);
+        buf[0x200-0x1] = 0x00; // 0xFF
+        buf[0x200-0x2] = 0x00; // 0xFF
+        buf[0x200-0x3] = 0x03; // 0xFF
+        buf[0x200-0x4] = 0xF0; // 0xFF
+        buf[0x200-0x5] = 0x00; // 0xFF
+        buf[0x200-0x6] = 0x00; // 0xFF
+        return;
+    } else if ((pos == GC_POS_FAT_1) || (pos == GC_POS_FAT_2)) {
+        uint8_t *buf = vbuf;
+        memset(buf, 0x00, 512);
+        buf[4] = 0x00;  // updated msb
+        buf[5] = (pos == GC_POS_FAT_1) ? 0 : 1;  // updated lsb
+        buf[6] = GC_FREEBLOCKS >> 8;  // freeblocks msb
+        buf[7] = GC_FREEBLOCKS & 0xFF;  // freeblocks lsb
+        buf[8] = 0x00;  // lastalloc msb
+        buf[9] = 0x04;  // lastalloc lsb
+        checksum(&buf[4], 508, (uint16_t*)&buf[0], (uint16_t*)&buf[2]);
+        uint16_t cs2 = swap16(*(uint16_t*)&buf[2]);
+        cs2 -= 0xF00;
+        buf[2] = cs2 >> 8; // checksum msb
+        buf[3] = cs2 & 0xFF; // checksum lsb
+        return;
+    } else if (pos > GC_POS_FAT_1 && pos < GC_POS_FAT_2) {
+        uint8_t *buf = vbuf;
+        memset(buf, 0x00, 512);
+        return;
+    } else if (pos > GC_POS_FAT_2 && pos < (GC_POS_FAT_2 + 0x2000)) {
+        uint8_t *buf = vbuf;
+        memset(buf, 0x00, 512);
+        return;
     }
-
-    memset(buf, 0xFF, PS2_PAGE_SIZE);
-
-    if (pos == CARD_OFFS_SUPERBLOCK) {  // Superblock
-        // 0x30: Clusters Total (2 Bytes): card_size / 1024
-        // 0x34: Alloc start: 0x49
-        // 0x38: Alloc end: ((((card_size / 8) / 1024) - 2) * 8) - 41
-        // 0x40: BBlock 1 - ((card_size / 8) / 1024) - 1
-        // 0x44: BBlock 2 - ((card_size / 8) / 1024) - 2
-        memset(buf, 0x00, 0xD0);
-        memcpy(buf, block0, sizeof(block0));
-        memset(&buf[0x150], 0x00, 0x2C);
-        (*(uint32_t *)&buf[0x30]) = (uint32_t)(CARD_CLUST_CNT);                // Total clusters
-        (*(uint32_t *)&buf[0x34]) = CARD_ALLOC_START;                          // Alloc Start
-        (*(uint32_t *)&buf[0x38]) = (uint32_t)(CARD_ALLOC_CLUSTERS - 1);       // Alloc End
-        (*(uint32_t *)&buf[0x40]) = (uint32_t)(((card_size / 8) / 1024) - 1);  // BB1
-        (*(uint32_t *)&buf[0x44]) = (uint32_t)(((card_size / 8) / 1024) - 2);  // BB2
-        buf[0x150] = 0x02;                                                     // Card Type
-        buf[0x151] = 0x2B;                                                     // Card Features
-        buf[0x152] = 0x00;                                                     // Card Features
-        (*(uint32_t *)&buf[0x154]) = (uint32_t)(2 * PS2_PAGE_SIZE);            // ClusterSize
-        (*(uint32_t *)&buf[0x158]) = (uint32_t)(256);                          // FAT Entries per Cluster
-        (*(uint32_t *)&buf[0x15C]) = (uint32_t)(8);                            // Clusters per Block
-        (*(uint32_t *)&buf[0x160]) = (uint32_t)(0xFFFFFFFF);                   // CardForm
-        // Note: for whatever weird reason, the max alloc cluster cnt needs to be calculated this way.
-        (*(uint32_t *)&buf[0x170]) = (uint32_t)(((CARD_CLUST_CNT/1000) * 1000) + 1); // Max Alloc Cluster
-
-
-    } else if (pos == CARD_OFFS_IND_FAT_0) {
-        // Indirect FAT
-        uint8_t byte = 0x11;
-        int32_t count = CARD_IND_FAT_SIZE % PS2_PAGE_SIZE;
-        if (count == 0)
-            count = PS2_PAGE_SIZE;
-        for (int i = 0; i < count; i++) {
-            if (i % 4 == 0) {
-                buf[i] = byte++;
-            } else {
-                buf[i] = 0;
-            }
-        }
-    } else if ((pos == CARD_OFFS_IND_FAT_1) && (ind_cnt >= 2)) {
-        uint32_t entry = 0x91;
-        for (int i = 0; i < PS2_PAGE_SIZE; i += 4) {
-            *(uint32_t *)(&buf[i]) = entry;
-            entry++;
-        }
-    } else if (pos >= CARD_OFFS_FAT_NORMAL && pos < CARD_OFFS_FAT_NORMAL + CARD_FAT_LENGTH) {
-        const uint32_t val = 0x7FFFFFFF;
-        size_t i = 0;
-        // FAT Table
-        if (pos == CARD_OFFS_FAT_NORMAL) {  // First cluster is used for root dir
-            i = 4;
-        }
-        for (; i < PS2_PAGE_SIZE; i += 4) {
-            if (pos + i < (CARD_OFFS_FAT_NORMAL + CARD_FAT_LENGTH) - 4) {  // -4 because last fat entry is FFFFFFFF
-                memcpy(&buf[i], &val, sizeof(val));
-            } else {
-                break;
-            }
-        }
-
-    } else if (pos == (CARD_ALLOC_START * 1024)) {
-        memcpy(buf, blockRoot, PS2_PAGE_SIZE);
-    } else if (pos == (CARD_ALLOC_START * 1024) + PS2_PAGE_SIZE) {
-        memcpy(buf, &blockRoot[PS2_PAGE_SIZE], PS2_PAGE_SIZE);
-    }
-        */
 }
 
 static int next_sector_to_load() {
@@ -460,7 +470,7 @@ void gc_cardman_open(void) {
             cardman_cb(0, false);
         // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
         for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
-            memset(flushbuf, 0xFF, BLOCK_SIZE);
+            genblock(pos, flushbuf);
 
             gc_dirty_lock();
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
