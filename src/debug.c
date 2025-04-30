@@ -18,7 +18,7 @@ const char *log_level_str[] = {
     "[TRACE]"
 };
 
-static char debug_queue[1024];
+static char debug_queue[4096];
 static size_t debug_read_pos, debug_write_pos;
 
 void debug_put(char c) {

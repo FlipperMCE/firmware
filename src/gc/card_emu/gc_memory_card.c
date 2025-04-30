@@ -24,9 +24,6 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GC_MC, level, fmt, ##x)
 #endif
 
-#define GC_MC_LATENCY_CYCLES ( 0x100 )
-#define GC_MC_MB_CARD_SIZE   ( 8 )
-#define GC_MC_SECTOR_SIZE    ( 0x2000 )
 
 static uint64_t gc_us_startup;
 
@@ -353,7 +350,7 @@ static void __time_critical_func(mc_mce_cmd)(void) {
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
-    card_state = 0x41;
+    card_state = 0x01;
 
     DPRINTF("Latency is %u\n", GC_MC_LATENCY_CYCLES);
     while (1) {

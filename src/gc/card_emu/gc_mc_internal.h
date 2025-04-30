@@ -13,6 +13,11 @@
 
 #define DMA_WAIT_CHAN 4
 
+
+#define GC_MC_LATENCY_CYCLES ( 0x100 )
+#define GC_MC_MB_CARD_SIZE   ( 8 )
+#define GC_MC_SECTOR_SIZE    ( 0x2000 )
+
 #define _ROTL(v,s) \
     (s&31 ? ((uint32_t)v<<s)|((uint32_t)v>>(0x20-s)) : v)
 
