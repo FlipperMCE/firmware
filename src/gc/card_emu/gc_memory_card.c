@@ -201,6 +201,7 @@ static void __time_critical_func(mc_probe)(void) {
     gc_receiveOrNextCmd(&_);
     gc_mc_respond(mc_probe_id[1]); // out byte 6
     gc_receiveOrNextCmd(&_);
+    card_state = 0x01;
 }
 
 
@@ -259,7 +260,6 @@ static void __time_critical_func(gc_mc_write)(void) {
     gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[0]);
     gc_mc_respond(0xFF); // out byte 5
-    //gc_receiveOrNextCmd(&data[0]);
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
 
@@ -300,8 +300,6 @@ static void __time_critical_func(mc_set_game_id)(void) {
     for (int i = 0; i < 10; i++) {
         gc_receiveOrNextCmd(&id[i]);
     }
-    /*DPRINTF("ID: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
-            id[0], id[1], id[2], id[3], id[4], id[5], id[6], id[7], id[8], id[9]);*/
 }
 
 static uint8_t name[65] = { 0x00 };
@@ -357,10 +355,6 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         uint8_t cmd = 0;
         uint8_t res = 0;
-
-        if (unlock_stage >= 4) {
-            card_state = 0x41;
-        }
 
         while (!reset) {};
 
@@ -518,9 +512,9 @@ void gc_memory_card_enter(void) {
     if (memcard_running)
         return;
 
-    mc_generateId();
     mc_enter_request = 1;
     while (!mc_enter_response) {}
+    mc_generateId();
     mc_enter_request = mc_enter_response = 0;
 }
 
