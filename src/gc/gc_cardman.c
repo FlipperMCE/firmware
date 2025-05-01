@@ -302,6 +302,10 @@ static void genblock(size_t pos, void *vbuf) {
         uint8_t *buf = vbuf;
         memset(buf, 0x00, 512);
         return;
+    } else {
+        uint8_t *buf = vbuf;
+        memset(buf, 0xFF, 512);
+        return;
     }
 }
 
