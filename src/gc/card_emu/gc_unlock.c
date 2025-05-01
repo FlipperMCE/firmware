@@ -23,6 +23,10 @@
 int unlock_stage = 0;
 static uint32_t card_cipher;
 
+static uint32_t initial_offset_u32 = 0x0;
+static uint32_t initial_length_u32 = 0x0;
+static uint32_t msg3_len_u32 = 0x0;
+
 
 static void __time_critical_func(extract_flash_id)(uint8_t *flash_id,  uint8_t *serial, uint64_t time)
 {
@@ -146,11 +150,8 @@ static void __time_critical_func(update_cipher)(uint32_t* cipher, uint32_t count
 // readArrayUnlock address is 0x7FEC8000..0x7FECF000
 
 void __time_critical_func(mc_unlock)(void) {
-    static uint32_t initial_offset_u32 = 0x0;
-    static uint32_t initial_length_u32 = 0x0;
     uint8_t offset[4] = { 0x00, 0x00, 0x00, 0x00 };
     uint32_t offset_u32 = 0U;
-    uint32_t len = 0;
     uint8_t _;
 
     if (unlock_stage == 0) {
@@ -161,15 +162,14 @@ void __time_critical_func(mc_unlock)(void) {
 
         dma_channel_start(DMA_WAIT_CHAN);
         initial_offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
-        //len -= 20;
+        initial_length_u32 = 0U;
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
 
         while (gc_receive(&_) != RECEIVE_RESET) {
-            len++;
+            initial_length_u32++;
         }
-        log(LOG_TRACE, "Unlock Msg1: Raw Offset is %08x / %02x\n", *(uint32_t*)&offset[0], len);
-        //log(LOG_TRACE, "Unlock Msg1: %08x / %u\n", initial_offset_u32, initial_length_u32);
-        initial_length_u32 = len;
+//        log(LOG_TRACE, "Unlock Msg1: Raw Offset is %08x / %02x\n", *(uint32_t*)&offset[0], initial_length_u32);
+
         unlock_stage++;
     } else if (unlock_stage == 1) {
         uint32_t a,b,c, d, e;
@@ -216,44 +216,44 @@ void __time_critical_func(mc_unlock)(void) {
         while (dma_channel_is_busy(DMA_WAIT_CHAN)) {tight_loop_contents();}; // Wait for DMA to complete
 
         gc_mc_respond(a_pu8[3]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(a_pu8[2]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(a_pu8[1]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(a_pu8[0]);
         gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(b_pu8[3]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(b_pu8[2]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(b_pu8[1]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(b_pu8[0]);
         gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(c_pu8[3]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(c_pu8[2]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(c_pu8[1]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(c_pu8[0]);
         gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(d_pu8[3]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(d_pu8[2]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(d_pu8[1]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(d_pu8[0]);
         gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(e_pu8[3]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(e_pu8[2]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(e_pu8[1]);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_mc_respond(e_pu8[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[0]);
         gc_receiveOrNextCmd(&offset[0]);
 
         while (gc_receive(&_) != RECEIVE_RESET) {
@@ -263,7 +263,7 @@ void __time_critical_func(mc_unlock)(void) {
 
         log(LOG_TRACE, "Unlock Msg2: Serial is ");
         for (int i = 0; i < 12; i++)
-            log(LOG_TRACE, "%02x ", page->data[i]);
+            DPRINTF("%02x ", page->data[i]);
         log(LOG_TRACE, "\n");
 
         log(LOG_TRACE, "Unlock Msg2: Flash ID is ");
@@ -281,17 +281,22 @@ void __time_critical_func(mc_unlock)(void) {
         *c_pu8 = (uint8_t*)&c,
         *d_pu8 = (uint8_t*)&d,
         *e_pu8 = (uint8_t*)&e;
+        gc_receiveOrNextCmd(&offset[3]);
+        gc_receiveOrNextCmd(&offset[2]);
+        offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
         gc_receiveOrNextCmd(&offset[1]);
-        gc_receiveOrNextCmd(&offset[0]);
-        offset_u32 = ((offset[1] << 24) & 0xFF000000) | ((offset[0] << 16) & 0x00FF0000);
-        gc_receiveOrNextCmd(&offset[0]);
         gc_receiveOrNextCmd(&offset[0]);
         dma_channel_start(DMA_WAIT_CHAN);
         //len -= 20;
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
+        gc_mc_respond(0xFF);
         while(gc_receive(&_) != RECEIVE_RESET) {
             len++;
+            gc_mc_respond(0xFF);
         }
+        msg3_len_u32 = len;
+        log(LOG_TRACE, "Unlock Msg3: Raw: %08x / %u\n", *(uint32_t*)offset, len);
+
         log(LOG_TRACE, "Unlock Msg3: Unlock: %08x / %u\n", offset_u32, len);
         unlock_stage++;
 
@@ -303,23 +308,25 @@ void __time_critical_func(mc_unlock)(void) {
         *c_pu8 = (uint8_t*)&c,
         *d_pu8 = (uint8_t*)&d,
         *e_pu8 = (uint8_t*)&e;
+        gc_receiveOrNextCmd(&offset[3]);
+        gc_receiveOrNextCmd(&offset[2]);
+        offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
         gc_receiveOrNextCmd(&offset[1]);
         gc_receiveOrNextCmd(&offset[0]);
-        offset_u32 = ((offset[1] << 24) & 0xFF000000) | ((offset[0] << 16) & 0x00FF0000);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
         dma_channel_start(DMA_WAIT_CHAN);
+
         //len -= 20;
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
-        while(gc_receive(&_) != RECEIVE_RESET) {
-            len++;
-        }
-        log(LOG_TRACE, "Unlock Msg4: Unlock: %08x / %u\n", offset_u32, len);
+        gc_mc_respond(0xFF);
 
 
-        if (unlock_stage++ > 2) {
-            card_state = 0x41;
-        }
+        //log(LOG_TRACE, "Unlock Msg4: Raw: %08x / %u\n", *(uint32_t*)offset, len);
+
+        //log(LOG_TRACE, "Unlock Msg4: Unlock: %08x / %u\n", offset_u32, len);
+
+
+        card_state = 0x41;
+        unlock_stage = 0;
     }
     return;
 
