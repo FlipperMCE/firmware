@@ -168,7 +168,7 @@ static uint8_t mc_probe_id[2] = {
 };
 
 static void mc_generateId(void) {
-    uint32_t size = 8 * GC_MC_MB_CARD_SIZE;
+    uint32_t size = ((gc_cardman_get_card_size() * 8) / (1024 * 1024));
     uint32_t latency = __builtin_ctz(GC_MC_LATENCY_CYCLES) - __builtin_ctz(0x4);
     uint32_t sector_size = __builtin_ctz(GC_MC_SECTOR_SIZE) - __builtin_ctz(0x2000);
     uint32_t value = (size & 0xfc) |
