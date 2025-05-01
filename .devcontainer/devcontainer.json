@@ -22,27 +22,30 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	 "postCreateCommand": "sudo bash .devcontainer/install-dependencies.sh",
+	"postCreateCommand": "sudo bash .devcontainer/install-dependencies.sh",
 
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
 			"extensions":
-				["twxs.cmake", 
+				["twxs.cmake",
 				"ms-vscode.cmake-tools",
 				"go2sh.cmake-integration-vscode",
 				"llvm-vs-code-extensions.vscode-clangd",
 				"xaver.clang-format",
 				"IBM.output-colorizer"
 				],
-				"settings": {"clangd.path": "/usr/bin/clangd", 
+				"settings": {"clangd.path": "/usr/bin/clangd",
 							"cmake.cmakePath": "cmake",
 						"clangd.arguments": ["--query-driver", "/usr/bin/arm-none-eabi-gcc"]}
 
 			},
-					
+
 		},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+	"remoteEnv": {
+	    "PODMAN_USERNS": "keep-id"
+	},
+	"containerUser": "vscode"
 }
