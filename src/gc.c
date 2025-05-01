@@ -30,7 +30,6 @@ void gc_init(void) {
     multicore_launch_core1(gc_memory_card_main);
 
 
-    gc_memory_card_enter();
 
     gc_mc_data_interface_init();
 
@@ -38,6 +37,7 @@ void gc_init(void) {
 
     log(LOG_INFO, "Starting memory card... ");
     gc_cardman_open();
+    gc_memory_card_enter();
 
     log(LOG_INFO, "DONE! (0 us)\n");
     gui_init();
