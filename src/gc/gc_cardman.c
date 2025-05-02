@@ -69,37 +69,42 @@ static gc_cardman_state_t cardman_state;
 static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE } cardman_operation;
 
 static bool try_set_boot_card() {
+    if (!settings_get_gc_autoboot())
+        return false;
 
-    return false;
+    card_idx = GC_CARD_IDX_SPECIAL;
+    card_chan = settings_get_gc_boot_channel();
+    cardman_state = GC_CM_STATE_BOOT;
+    snprintf(folder_name, sizeof(folder_name), "BOOT");
+    return true;
 }
 
 static void set_default_card() {
-    card_idx = 1;//settings_get_ps2_card();
-    card_chan = 1;//settings_get_ps2_channel();
+    card_idx = settings_get_gc_card();
+    card_chan = settings_get_gc_channel();
     cardman_state = GC_CM_STATE_NORMAL;
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
 
 static bool try_set_game_id_card() {
-    return false;/*
-    if (!settings_get_ps2_game_id())
+    if (!settings_get_gc_game_id())
         return false;
 
-    char parent_id[MAX_GAME_ID_LENGTH] = {};
+    char id[MAX_GAME_ID_LENGTH] = {};
 
-    (void)game_db_get_current_parent(parent_id);
+    (void)game_db_get_current_id(id);
 
-    if (!parent_id[0])
+    if (!id[0])
         return false;
 
-    card_idx = PS2_CARD_IDX_SPECIAL;
+    card_idx = GC_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = GC_CM_STATE_GAMEID;
-    card_config_get_card_folder(parent_id, folder_name, sizeof(folder_name));
+    card_config_get_card_folder(id, folder_name, sizeof(folder_name));
     if (folder_name[0] == 0x00)
-        snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+        snprintf(folder_name, sizeof(folder_name), "%s", id);
 
-    return true;*/
+    return true;
 }
 
 int gc_cardman_read_sector(int sector, void *buf512) {
@@ -116,7 +121,6 @@ int gc_cardman_read_sector(int sector, void *buf512) {
 }
 
 static bool try_set_next_named_card() {
-    return false; /*
     bool ret = false;
     if (cardman_state != GC_CM_STATE_NAMED) {
         ret = try_set_named_card_folder(cardhome, 0, folder_name, sizeof(folder_name));
@@ -133,19 +137,19 @@ static bool try_set_next_named_card() {
         cardman_state = GC_CM_STATE_NAMED;
     }
 
-    return ret;*/
+    return ret;
 }
 
 static bool try_set_prev_named_card() {
     bool ret = false;
-    /*if (card_idx > 1) {
+    if (card_idx > 1) {
         ret = try_set_named_card_folder(cardhome, card_idx - 2, folder_name, sizeof(folder_name));
         if (ret) {
             card_idx--;
             card_chan = CHAN_MIN;
             cardman_state = GC_CM_STATE_NAMED;
         }
-    }*/
+    }
     return ret;
 }
 
@@ -204,7 +208,7 @@ static void checksum(uint8_t *buff,int32_t len,uint16_t *cs1,uint16_t *cs2)
     uint16_t csum = 0;
     uint16_t inv_csum = 0;
 
-    for (size_t i = 0; i < len; i += 2)
+    for (int32_t i = 0; i < len; i += 2)
     {
       uint16_t d = swap16(*(uint16_t*)(&buff[i]));
       csum += d;
@@ -441,7 +445,7 @@ void gc_cardman_open(void) {
                 snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
             }
 
-            //settings_set_ps2_boot_channel(card_chan);
+            settings_set_gc_boot_channel(card_chan);
             break;
         case GC_CM_STATE_NAMED:
         case GC_CM_STATE_GAMEID: snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan); break;
@@ -449,8 +453,8 @@ void gc_cardman_open(void) {
             snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
 
             /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
-            //settings_set_ps2_card(card_idx);
-            //settings_set_ps2_channel(card_chan);
+            settings_set_gc_card(card_idx);
+            settings_set_gc_channel(card_chan);
             break;
     }
 
@@ -458,8 +462,10 @@ void gc_cardman_open(void) {
     gc_mc_data_interface_card_changed();
 
     if (!sd_exists(path)) {
-        card_size = 8*1024*1024; //card_config_get_ps2_cardsize(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024;
-
+        card_size = card_config_get_gc_cardsize(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024 / 8;
+        if (card_size == 0U) {
+            card_size = settings_get_gc_cardsize() * 1024 * 1024 / 8;
+        }
         cardman_operation = CARDMAN_CREATE;
         gc_cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
         cardman_sectors_done = 0;
@@ -602,7 +608,7 @@ void gc_cardman_prev_idx(void) {
         case GC_CM_STATE_NORMAL:
             card_idx -= 1;
             card_chan = CHAN_MIN;
-            if (card_idx <= PS2_CARD_IDX_SPECIAL) {
+            if (card_idx <= GC_CARD_IDX_SPECIAL) {
                 if (!try_set_game_id_card() && !try_set_boot_card() && !try_set_next_named_card())
                     set_default_card();
             } else {
@@ -623,8 +629,23 @@ int gc_cardman_get_channel(void) {
 }
 
 void gc_cardman_set_gameid(const char *const card_game_id) {
-    return;
+    if (!settings_get_gc_game_id())
+        return;
 
+    char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
+    if (card_game_id[0]) {
+        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        if (new_folder_name[0] == 0x00)
+            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        log(LOG_TRACE, "Folder: %s\n", new_folder_name);
+        if ((strcmp(new_folder_name, folder_name) != 0) || (GC_CM_STATE_GAMEID != cardman_state)) {
+            card_idx = GC_CARD_IDX_SPECIAL;
+            cardman_state = GC_CM_STATE_GAMEID;
+            card_chan = CHAN_MIN;
+            memcpy(folder_name, new_folder_name, sizeof(folder_name));
+            needs_update = true;
+        }
+    }
 }
 
 void gc_cardman_set_progress_cb(cardman_cb_t func) {

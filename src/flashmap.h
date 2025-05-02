@@ -20,4 +20,4 @@
 //#define FLASH_OFF_EEPROM (0x1fc000)
 
 /* at the 8MB boundary */
-#define FLASH_OFF_PS2EXP (0x800000)
+#define FLASH_OFF_GCEXP (0x800000)

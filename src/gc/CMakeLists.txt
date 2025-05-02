@@ -16,7 +16,7 @@ target_include_directories(gc_card
 )
 
 target_link_libraries(gc_card PRIVATE
-            sd2psx_common
+            flippermce_common
             pico_stdlib
             pico_multicore
             hardware_sync

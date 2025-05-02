@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 
-#define PS2_CARD_IDX_SPECIAL 0
+#define GC_CARD_IDX_SPECIAL 0
 
 typedef enum  {
     GC_CM_STATE_NAMED,

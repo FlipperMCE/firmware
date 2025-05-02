@@ -52,7 +52,7 @@ target_link_libraries(sd_fat
             pico_stdlib
             hardware_spi)
 
-target_link_libraries(sd_fat PRIVATE sd2psx_common)
+target_link_libraries(sd_fat PRIVATE flippermce_common)
 
 if (WITH_PSRAM)
     target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)

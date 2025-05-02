@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "hardware/watchdog.h"
 #include "led.h"
+#include "mmceman/gc_mmceman.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
@@ -23,24 +24,11 @@
 #include "psram/psram.h"
 #endif
 
-#if FLIPPER
-    #include "card_emu/gc_memory_card.h"
-    //#include "mmceman/gc_mmceman.h"
-    //#include "mmceman/gc_mmceman_commands.h"
-    #include "gc_cardman.h"
-    #include "gc.h"
-#else
-    #include "ps1/ps1_memory_card.h"
-    #include "ps1/ps1_cardman.h"
-
-    #include "ps2.h"
-    #include "ps1.h"
-
-    #include "card_emu/ps2_memory_card.h"
-    #include "mmceman/ps2_mmceman.h"
-    #include "mmceman/ps2_mmceman_commands.h"
-    #include "ps2_cardman.h"
-#endif
+#include "card_emu/gc_memory_card.h"
+//#include "mmceman/gc_mmceman.h"
+//#include "mmceman/gc_mmceman_commands.h"
+#include "gc_cardman.h"
+#include "gc.h"
 
 #include "game_db/game_db.h"
 
@@ -93,59 +81,19 @@ static void debug_task(void) {
                 watchdog_reboot(0, 0, 0);
             }
         }
-        #if !FLIPPER
         else if (in[0] == 'c') {
             if ((in[1] == 'h') && (in[2] == '+')) {
                 DPRINTF("Received Channel Up!\n");
-                if (settings_get_mode() == MODE_PS2) {
-                    mmceman_mode = MMCEMAN_MODE_NEXT;
-                    mmceman_cmd = MMCEMAN_SET_CHANNEL;
-                }  else {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    ps1_cardman_next_channel();
-                    ps1_cardman_open();
-                    ps1_memory_card_enter();
-                }
+                gc_mmceman_next_ch(false);
             } else if ((in[1] == 'h') && (in[2] == '-')) {
                 DPRINTF("Received Channel Down!\n");
-                if (settings_get_mode() == MODE_PS2) {
-                    mmceman_mode = MMCEMAN_MODE_PREV;
-                    mmceman_cmd = MMCEMAN_SET_CHANNEL;
-                } else {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    ps1_cardman_prev_channel();
-                    ps1_cardman_open();
-                    ps1_memory_card_enter();
-                }
+                gc_mmceman_prev_ch(false);
             } else if (in[1] == '+') {
-                DPRINTF("Received Card Up!\n");
-                if (settings_get_mode() == MODE_PS2) {
-                    mmceman_mode = MMCEMAN_MODE_NEXT;
-                    mmceman_cmd = MMCEMAN_SET_CARD;
-                } else {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    ps1_cardman_next_idx();
-                    ps1_cardman_open();
-                    ps1_memory_card_enter();
-                }
+                gc_mmceman_next_idx(false);
             } else if (in[1] == '-') {
-                DPRINTF("Received Card Down!\n");
-                if (settings_get_mode() == MODE_PS2) {
-                    mmceman_mode = MMCEMAN_MODE_PREV;
-                    mmceman_cmd = MMCEMAN_SET_CARD;
-                } else {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    ps1_cardman_prev_idx();
-                    ps1_cardman_open();
-                    ps1_memory_card_enter();
-                }
+               gc_mmceman_prev_idx(false);
             }
         }
-        #endif
     }
 #endif
 }
@@ -178,9 +126,8 @@ int main() {
     printf("SD2PSX HW Variant: %s\n", sd2psx_variant);
 
     settings_init();
-#if WITH_PSRAM
+
     psram_init();
-#endif
 #if !FLIPPER
     game_db_init();
 #endif
@@ -190,7 +137,6 @@ int main() {
 #endif
 
     while (1) {
-#if FLIPPER
         gc_init();
         while (1) {
             debug_task();
@@ -198,27 +144,5 @@ int main() {
                 break;
         }
         gc_deinit();
-#else
-        if (settings_get_mode() == MODE_PS2) {
-            ps2_init();
-            settings_load_sd();
-            while (1) {
-                debug_task();
-                if (!ps2_task())
-                    break;
-            }
-            ps2_deinit();
-
-        } else {
-            ps1_init();
-            settings_load_sd();
-            while (1) {
-                debug_task();
-                if (!ps1_task())
-                    break;
-            }
-            ps1_deinit();
-        }
-#endif
     }
 }
