@@ -95,10 +95,12 @@ def createDbFile(rootdir, outputdir):
     id_length = 4
 
     game_ids_offset = 0
-    game_names_base_offset = game_ids_offset + (len(redump_games) * 8)
+    game_names_base_offset = game_ids_offset + (len(games_sorted) * 8) + 8
 
     offset = game_names_base_offset
     game_name_to_offset = {}
+    print(f"Offset Base {hex(offset)}")
+
     # Calculate offset for each game name
     for gamename in gamenames:
         if gamename not in game_name_to_offset:
@@ -116,7 +118,9 @@ def createDbFile(rootdir, outputdir):
             game = games_sorted[id]
             out.write(game.id.encode('ascii'))
             out.write(game_name_to_offset[game.name].to_bytes(4, 'big'))
-            out.write(term.to_bytes(8, 'big'))
+           # print("Game Name: {} Offset: {}".format(game.name, game_name_to_offset[game.name]))
+
+        out.write(term.to_bytes(8, 'big'))
         # Last: write null terminated game names
         for game in game_name_to_offset:
             out.write(game.encode('ascii'))

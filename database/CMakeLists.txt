@@ -1,5 +1,5 @@
 
-set(GAMEDB_GC_OBJ "${CMAKE_CURRENT_BINARY_DIR}/gamedbps2.o")
+set(GAMEDB_GC_OBJ "${CMAKE_CURRENT_BINARY_DIR}/gamedbgc.o")
 
 add_library(gamedb INTERFACE)
 add_custom_target(gamedbobjs_gc ALL

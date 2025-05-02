@@ -445,7 +445,9 @@ void gc_cardman_open(void) {
             settings_set_gc_boot_channel(card_chan);
             break;
         case GC_CM_STATE_NAMED:
-        case GC_CM_STATE_GAMEID: snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan); break;
+        case GC_CM_STATE_GAMEID:
+            snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
+            break;
         case GC_CM_STATE_NORMAL:
             snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
 
@@ -693,8 +695,8 @@ bool gc_cardman_is_idle(void) {
 void gc_cardman_init(void) {
     cardman_operation = CARDMAN_IDLE;
     cardman_state = GC_CM_STATE_NORMAL;
-    set_default_card();
-
+    if (!try_set_boot_card())
+        set_default_card();
 }
 
 void gc_cardman_task(void) {

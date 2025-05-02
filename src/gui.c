@@ -902,12 +902,12 @@ void gui_task(void) {
                                             card_name,
                                             sizeof(card_name));
 
-            //if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
-            //    game_db_get_current_name(card_name);
-            //}
-            //if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
-            //    game_db_get_game_name(folder_name, card_name);
-            //}
+            if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
+                game_db_get_current_name(card_name);
+            }
+            if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
+                game_db_get_game_name(folder_name, card_name);
+            }
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);

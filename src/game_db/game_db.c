@@ -32,7 +32,7 @@ static game_lookup current_game;
 
 #pragma GCC diagnostic ignored "-Warray-bounds"
 static uint32_t game_db_char_array_to_uint32(const char in[4]) {
-    char inter[4] = {in[3], in[2], in[1], in[0]};
+    char inter[4] = {in[3], in[2], in[1], in[0  ]};
     uint32_t tgt;
     memcpy((void*)&tgt, (void*)inter, sizeof(tgt));
     return tgt;
@@ -111,13 +111,13 @@ void game_db_update_game(const char* const game_id) {
 
 
 void game_db_get_game_name(const char* game_id, char* game_name) {
-    if (!game_id || game_id[0] == 0) {
+    if (!game_id || game_id[0] == 0)
         return;
 
     game_lookup lookup = find_game_lookup(game_id);
     if (lookup.name && lookup.name[0])
         strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
-}
+
 }
 
 void game_db_init(void) {
