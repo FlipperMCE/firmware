@@ -14,48 +14,37 @@
    ensure to increase the version magic below -- this will trigger setting reset on next boot */
 typedef struct {
     uint32_t version_magic;
-    uint16_t ps1_card;
-    uint16_t ps2_card;
-    uint8_t ps1_channel;
-    uint8_t ps2_channel;
-    uint8_t ps1_boot_channel;
-    uint8_t ps2_boot_channel;
-    uint8_t ps1_flags; // TODO: single bit options: freepsxboot, pocketstation, freepsxboot slot
-    // TODO: more ps1 settings: model for freepsxboot
-    uint8_t ps2_flags; // TODO: single bit options: autoboot
-    uint8_t sys_flags; // TODO: single bit options: whether ps1 or ps2 mode, etc
+    uint16_t gc_card;
+    uint8_t pad_0[2];
+    uint8_t gc_channel;
+    uint8_t gc_boot_channel;
+    uint8_t gc_flags; // TODO: single bit options: freepsxboot, pocketstation, freepsxboot slot
+    // TODO: more gc settings: model for freepsxboot
+    uint8_t sys_flags; // TODO: single bit options: whether gc or gc mode, etc
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
     uint8_t display_contrast; // display - contrast, 0-255
     uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
-    uint8_t ps2_cardsize;
-    // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
-    uint8_t ps2_variant; // Variant for keys
+    uint8_t gc_cardsize;
 } settings_t;
 
 typedef struct {
-    uint8_t ps2_flags;
-    uint8_t ps1_flags;
+    uint8_t gc_flags;
     uint8_t sys_flags;
-    uint8_t ps2_cardsize;
-    uint8_t ps2_variant; // Variant for keys
+    uint8_t gc_cardsize;
 } serialized_settings_t;
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC              (0xAACD0006)
-#define SETTINGS_PS1_FLAGS_AUTOBOOT         (0b0000001)
-#define SETTINGS_PS1_FLAGS_GAME_ID          (0b0000010)
-#define SETTINGS_PS2_FLAGS_AUTOBOOT         (0b0000001)
-#define SETTINGS_PS2_FLAGS_GAME_ID          (0b0000010)
-#define SETTINGS_SYS_FLAGS_PS2_MODE         (0b0000001)
-#define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY  (0b0000010)
+#define SETTINGS_VERSION_MAGIC             (0xAACE0000)
+#define SETTINGS_GC_FLAGS_AUTOBOOT         (0b0000001)
+#define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
+#define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
 
-_Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
+_Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
 static settings_t settings;
 static serialized_settings_t serialized_settings;
-static int tempmode;
-static const char settings_path[] = "/.sd2psx/settings.ini";
+static const char settings_path[] = "/.flippermce/settings.ini";
 
 static void settings_update_part(void *settings_ptr, uint32_t sz);
 static void settings_serialize(void);
@@ -65,43 +54,25 @@ static int parse_card_configuration(void *user, const char *section, const char 
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     #define DIFFERS(v, s) ((strcmp(v, "ON") == 0) != s)
-    if (MATCH("PS1", "Autoboot")
-        && DIFFERS(value, ((_s->ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT) > 0))) {
-        _s->ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
-    } else if (MATCH("PS1", "GameID")
-        && DIFFERS(value, ((_s->ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID) > 0))) {
-        _s->ps1_flags ^= SETTINGS_PS1_FLAGS_GAME_ID;
-    } else if (MATCH("PS2", "Autoboot")
-        && DIFFERS(value, ((_s->ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT) > 0))) {
-        _s->ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
-    } else if (MATCH("PS2", "GameID")
-        && DIFFERS(value, ((_s->ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID) > 0))) {
-        _s->ps1_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
-    } else if (MATCH("PS2", "CardSize")) {
+    if (MATCH("GC", "Autoboot")
+        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT) > 0))) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_AUTOBOOT;
+    } else if (MATCH("GC", "GameID")
+        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0))) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    } else if (MATCH("GC", "CardSize")) {
         int size = atoi(value);
         switch (size) {
-            case 1:
-            case 2:
             case 4:
             case 8:
             case 16:
             case 32:
             case 64:
-                _s->ps2_cardsize = size;
+                _s->gc_cardsize = size;
                 break;
             default:
                 break;
         }
-    }else if (MATCH("PS2", "Variant")) {
-        _s->ps2_variant = PS2_VARIANT_RETAIL;
-        if (strcmp(value, "PROTO") == 0) {
-            _s->ps2_variant = PS2_VARIANT_PROTO;
-        } else if (strcmp(value, "ARCADE") == 0) {
-            _s->ps2_variant = PS2_VARIANT_COH;
-        }
-    } else if (MATCH("General", "Mode")
-        && (strcmp(value, "PS2") == 0) != ((_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0)) {
-        _s->sys_flags ^= SETTINGS_SYS_FLAGS_PS2_MODE;
     } else if (MATCH("General", "FlippedScreen")
         && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0))) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
@@ -116,11 +87,9 @@ static void settings_deserialize(void) {
     fd = sd_open(settings_path, O_RDONLY);
     if (fd >= 0) {
 
-        serialized_settings_t newSettings = {.ps2_flags = settings.ps2_flags,
+        serialized_settings_t newSettings = {.gc_flags = settings.gc_flags,
                                              .sys_flags = settings.sys_flags,
-                                             .ps2_cardsize = settings.ps2_cardsize,
-                                             .ps2_variant = settings.ps2_variant,
-                                             .ps1_flags = settings.ps1_flags};
+                                             .gc_cardsize = settings.gc_cardsize};
         serialized_settings = newSettings;
         ini_parse_sd_file(fd, parse_card_configuration, &newSettings);
         sd_close(fd);
@@ -128,10 +97,9 @@ static void settings_deserialize(void) {
             printf("Updating settings from ini\n");
             serialized_settings = newSettings;
             settings.sys_flags       = newSettings.sys_flags;
-            settings.ps2_flags       = newSettings.ps2_flags;
-            settings.ps2_cardsize    = newSettings.ps2_cardsize;
-            settings.ps2_variant     = newSettings.ps2_variant;
-            settings.ps1_flags       = newSettings.ps1_flags;
+            settings.gc_flags       = newSettings.gc_flags;
+            settings.gc_cardsize    = newSettings.gc_cardsize;
+            settings.gc_flags       = newSettings.gc_flags;
 
             wear_leveling_write(0, &settings, sizeof(settings));
         }
@@ -141,16 +109,15 @@ static void settings_deserialize(void) {
 static void settings_serialize(void) {
     int fd;
     // Only serialize if required
-    if (serialized_settings.ps2_cardsize == settings.ps2_cardsize &&
-        serialized_settings.ps2_flags == settings.ps2_flags &&
+    if (serialized_settings.gc_cardsize == settings.gc_cardsize &&
+        serialized_settings.gc_flags == settings.gc_flags &&
         serialized_settings.sys_flags == settings.sys_flags &&
-        serialized_settings.ps2_variant == settings.ps2_variant &&
-        serialized_settings.ps1_flags == settings.ps1_flags) {
+        serialized_settings.gc_flags == settings.gc_flags) {
         return;
     }
 
-    if (!sd_exists("/.sd2psx/")) {
-        sd_mkdir("/.sd2psx/");
+    if (!sd_exists("/.flippermce/")) {
+        sd_mkdir("/.flippermce/");
     }
     fd = sd_open(settings_path, O_RDWR | O_CREAT);
     if (fd >= 0) {
@@ -158,46 +125,23 @@ static void settings_serialize(void) {
         char line_buffer[256] = { 0x0 };
         int written = snprintf(line_buffer, 256, "[General]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "Mode=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0) ? "PS2" : "PS1");
-        sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "[PS1]\n");
+        written = snprintf(line_buffer, 256, "[GC]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
+        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
+        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "[PS2]\n");
-        sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
-        sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
-        sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.ps2_cardsize);
-        sd_write(fd, line_buffer, written);
-        switch (settings.ps2_variant) {
-            case PS2_VARIANT_PROTO:
-                written = snprintf(line_buffer, 256, "Variant=PROTO\n" );
-                break;
-            case PS2_VARIANT_COH:
-                written = snprintf(line_buffer, 256, "Variant=ARCADE\n" );
-                break;
-            case PS2_VARIANT_RETAIL:
-            default:
-                written = snprintf(line_buffer, 256, "Variant=RETAIL\n" );
-                break;
-
-        }
+        written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
         sd_write(fd, line_buffer, written);
 
         sd_close(fd);
     }
     serialized_settings.sys_flags       = settings.sys_flags;
-    serialized_settings.ps2_flags       = settings.ps2_flags;
-    serialized_settings.ps2_cardsize    = settings.ps2_cardsize;
-    serialized_settings.ps2_variant     = settings.ps2_variant;
-    serialized_settings.ps1_flags       = settings.ps1_flags;
+    serialized_settings.gc_flags       = settings.gc_flags;
+    serialized_settings.gc_cardsize    = settings.gc_cardsize;
+    serialized_settings.gc_flags       = settings.gc_flags;
 }
 
 static void settings_reset(void) {
@@ -206,10 +150,8 @@ static void settings_reset(void) {
     settings.display_timeout = 0; // off
     settings.display_contrast = 255; // 100%
     settings.display_vcomh = 0x30; // 0.83 x VCC
-    settings.ps1_flags = SETTINGS_PS1_FLAGS_GAME_ID;
-    settings.ps2_flags = SETTINGS_PS2_FLAGS_GAME_ID;
-    settings.ps2_cardsize = 8;
-    settings.ps2_variant = PS2_VARIANT_RETAIL;
+    settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_AUTOBOOT;
+    settings.gc_cardsize = 64;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -241,8 +183,6 @@ void settings_init(void) {
         settings_reset();
     }
 
-
-    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
@@ -255,173 +195,74 @@ static void settings_update_part(void *settings_ptr, uint32_t sz) {
 }
 
 
-int settings_get_ps2_card(void) {
-    if (settings.ps2_card < IDX_MIN)
+int settings_get_gc_card(void) {
+    if (settings.gc_card < IDX_MIN)
         return IDX_MIN;
-    return settings.ps2_card;
+    return settings.gc_card;
 }
 
-int settings_get_ps2_channel(void) {
-    if (settings.ps2_channel < CHAN_MIN || settings.ps2_channel > CHAN_MAX)
+int settings_get_gc_channel(void) {
+    if (settings.gc_channel < CHAN_MIN || settings.gc_channel > CHAN_MAX)
         return CHAN_MIN;
-    return settings.ps2_channel;
+    return settings.gc_channel;
 }
 
-int settings_get_ps2_boot_channel(void) {
-    if (settings.ps2_boot_channel < CHAN_MIN || settings.ps2_boot_channel > CHAN_MAX)
+int settings_get_gc_boot_channel(void) {
+    if (settings.gc_boot_channel < CHAN_MIN || settings.gc_boot_channel > CHAN_MAX)
         return CHAN_MIN;
-    return settings.ps2_boot_channel;
+    return settings.gc_boot_channel;
 }
 
-uint8_t settings_get_ps2_cardsize(void) {
-#ifdef FEAT_PS2_CARDSIZE
-    return settings.ps2_cardsize;
-#else
-    return 8;
-#endif
+uint8_t settings_get_gc_cardsize(void) {
+    return settings.gc_cardsize;
 }
 
-int settings_get_ps2_variant(void) {
-    return settings.ps2_variant;
-}
-
-void settings_set_ps2_card(int card) {
-    if (card != settings.ps2_card) {
-        settings.ps2_card = card;
-        SETTINGS_UPDATE_FIELD(ps2_card);
+void settings_set_gc_card(int card) {
+    if (card != settings.gc_card) {
+        settings.gc_card = card;
+        SETTINGS_UPDATE_FIELD(gc_card);
     }
 }
 
-void settings_set_ps2_channel(int chan) {
-    if (chan != settings.ps2_channel) {
-        settings.ps2_channel = chan;
-        SETTINGS_UPDATE_FIELD(ps2_channel);
+void settings_set_gc_channel(int chan) {
+    if (chan != settings.gc_channel) {
+        settings.gc_channel = chan;
+        SETTINGS_UPDATE_FIELD(gc_channel);
     }
 }
 
-void settings_set_ps2_boot_channel(int chan) {
-    if (chan != settings.ps2_boot_channel) {
-        settings.ps2_boot_channel = chan;
-        SETTINGS_UPDATE_FIELD(ps2_boot_channel);
+void settings_set_gc_boot_channel(int chan) {
+    if (chan != settings.gc_boot_channel) {
+        settings.gc_boot_channel = chan;
+        SETTINGS_UPDATE_FIELD(gc_boot_channel);
     }
 }
 
-void settings_set_ps2_cardsize(uint8_t size) {
-    if (size != settings.ps2_cardsize) {
-        settings.ps2_cardsize = size;
-        SETTINGS_UPDATE_FIELD(ps2_cardsize);
+void settings_set_gc_cardsize(uint8_t size) {
+    if (size != settings.gc_cardsize) {
+        settings.gc_cardsize = size;
+        SETTINGS_UPDATE_FIELD(gc_cardsize);
     }
 }
 
-void settings_set_ps2_variant(int x) {
-    if (settings.ps2_variant != x) {
-        settings.ps2_variant = x;
-        SETTINGS_UPDATE_FIELD(ps2_variant);
-    }
+bool settings_get_gc_autoboot(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT);
 }
 
-
-int settings_get_ps1_card(void) {
-    if (settings.ps1_card < IDX_MIN)
-        return IDX_MIN;
-    return settings.ps1_card;
+void settings_set_gc_autoboot(bool autoboot) {
+    if (autoboot != settings_get_gc_autoboot())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(gc_flags);
 }
 
-int settings_get_ps1_channel(void) {
-    if (settings.ps1_channel < CHAN_MIN || settings.ps1_channel > CHAN_MAX)
-        return CHAN_MIN;
-    return settings.ps1_channel;
+bool settings_get_gc_game_id(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID);
 }
 
-int settings_get_ps1_boot_channel(void) {
-    if (settings.ps1_boot_channel < CHAN_MIN || settings.ps1_boot_channel > CHAN_MAX)
-        return CHAN_MIN;
-    return settings.ps1_boot_channel;
-}
-
-void settings_set_ps1_card(int card) {
-    if (card != settings.ps1_card) {
-        settings.ps1_card = card;
-        SETTINGS_UPDATE_FIELD(ps1_card);
-    }
-}
-
-void settings_set_ps1_channel(int chan) {
-    if (chan != settings.ps1_channel) {
-        settings.ps1_channel = chan;
-        SETTINGS_UPDATE_FIELD(ps1_channel);
-    }
-}
-
-void settings_set_ps1_boot_channel(int chan) {
-    if (chan != settings.ps1_boot_channel) {
-        settings.ps1_boot_channel = chan;
-        SETTINGS_UPDATE_FIELD(ps1_boot_channel);
-    }
-}
-
-int settings_get_mode(void) {
-    if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
-        return MODE_PS1;
-    else
-        return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
-}
-
-void settings_set_mode(int mode) {
-    if (mode == MODE_TEMP_PS1) {
-        tempmode = MODE_TEMP_PS1;
-        DPRINTF("Setting PS1 Tempmode\n");
-        return;
-    } else if (mode != MODE_PS1 && mode != MODE_PS2)
-        return;
-
-    if (mode != settings_get_mode()) {
-        /* clear old mode, then set what was passed in */
-        settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
-        settings.sys_flags |= mode;
-        SETTINGS_UPDATE_FIELD(sys_flags);
-        tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
-    }
-}
-
-bool settings_get_ps1_autoboot(void) {
-    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT);
-}
-
-void settings_set_ps1_autoboot(bool autoboot) {
-    if (autoboot != settings_get_ps1_autoboot())
-        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
-    SETTINGS_UPDATE_FIELD(ps1_flags);
-}
-
-bool settings_get_ps1_game_id(void) {
-    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID);
-}
-
-void settings_set_ps1_game_id(bool enabled) {
-    if (enabled != settings_get_ps1_game_id())
-        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_GAME_ID;
-    SETTINGS_UPDATE_FIELD(ps1_flags);
-}
-
-bool settings_get_ps2_autoboot(void) {
-    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
-}
-
-void settings_set_ps2_autoboot(bool autoboot) {
-    if (autoboot != settings_get_ps2_autoboot())
-        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
-    SETTINGS_UPDATE_FIELD(ps2_flags);
-}
-
-bool settings_get_ps2_game_id(void) {
-    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID);
-}
-
-void settings_set_ps2_game_id(bool enabled) {
-    if (enabled != settings_get_ps2_game_id())
-        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
-    SETTINGS_UPDATE_FIELD(ps2_flags);
+void settings_set_gc_game_id(bool enabled) {
+    if (enabled != settings_get_gc_game_id())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    SETTINGS_UPDATE_FIELD(gc_flags);
 }
 
 uint8_t settings_get_display_timeout() {

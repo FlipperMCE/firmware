@@ -30,22 +30,22 @@ message(STATUS "Building ${TARGET_NAME}")
 
 
 # Add all subdirectories for sub-targets
-
-add_subdirectory(database)
 add_subdirectory(src/version)
-add_subdirectory(src/ps2)
-add_subdirectory(src/ps1)
+
+add_subdirectory(src/gc)
+
 if (SD2PSX_WITH_PSRAM)
     add_subdirectory(src/psram)
 endif()
 add_subdirectory(ext/)
+add_subdirectory(database)
 
 # SD2PSX Main Lib
 
+
 add_executable(${TARGET_NAME}
     src/main.c
-    src/ps2.c
-    src/ps1.c
+    src/gc.c
 
     src/game_db/game_db.c
     src/wear_leveling/wear_leveling.c
@@ -53,6 +53,21 @@ add_executable(${TARGET_NAME}
 
     ext/fnv/hash_64a.c
 )
+
+target_link_libraries(${TARGET_NAME}
+PRIVATE
+    pico_stdlib
+    pico_multicore
+    hardware_pio
+    hardware_i2c
+    hardware_flash
+    gamedb
+    sd2psx_version
+    flippermce_common
+    gc_card
+    sd_fat
+)
+
 
 target_compile_definitions(
     ${TARGET_NAME} PUBLIC
@@ -63,42 +78,27 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
 )
 
-target_link_libraries(${TARGET_NAME}
-    PRIVATE
-        pico_stdlib
-        pico_multicore
-        hardware_pio
-        hardware_i2c
-        hardware_flash
-        gamedb
-        sd2psx_version
-        sd2psx_common
-        ps1_card
-        ps2_card
-        sd_fat
-)
-
-add_dependencies(${TARGET_NAME} gamedb)
+if(NOT FLIPPERMCE)
+    add_dependencies(${TARGET_NAME} gamedb)
+endif()
 set_target_properties(${TARGET_NAME} PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 # Common Lib
 
-add_library(sd2psx_common STATIC
+add_library(flippermce_common STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/debug.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/input.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/des.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/keystore.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/settings.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/bigmem.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/card_config.c)
 
-target_include_directories(sd2psx_common
+target_include_directories(flippermce_common
                 PUBLIC
                     ${CMAKE_CURRENT_SOURCE_DIR}/src
                 PRIVATE )
 
-target_link_libraries(sd2psx_common
+target_link_libraries(flippermce_common
                     PRIVATE
                         sd_fat
                         pico_platform_headers
@@ -108,27 +108,27 @@ target_link_libraries(sd2psx_common
                         pico_multicore
                         inih)
 
-target_compile_options(sd2psx_common
+target_compile_options(flippermce_common
                         PUBLIC
                             -Wall -Wextra
                             -fno-jump-tables)
 
-target_compile_definitions(sd2psx_common PUBLIC
+target_compile_definitions(flippermce_common PUBLIC
                             USE_SPI_ARRAY_TRANSFER=1
                             -DFEAT_PS2_CARDSIZE=1
                             -DFEAT_PS2_MMCE=1)
 if (SD2PSX_WITH_PSRAM)
-    target_compile_definitions(sd2psx_common PUBLIC "WITH_PSRAM=1")
+    target_compile_definitions(flippermce_common PUBLIC "WITH_PSRAM=1")
 endif()
 
 if (SD2PSX_WITH_GUI)
-    target_compile_definitions(sd2psx_common PUBLIC "WITH_GUI=1")
-    target_sources(sd2psx_common PRIVATE
+    target_compile_definitions(flippermce_common PUBLIC "WITH_GUI=1")
+    target_sources(flippermce_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c)
-    target_link_libraries(sd2psx_common
+    target_link_libraries(flippermce_common
                 PUBLIC
                     lvgl::lvgl
                 PRIVATE
@@ -136,15 +136,19 @@ if (SD2PSX_WITH_GUI)
 endif()
 
 if (SD2PSX_WITH_LED)
-    target_compile_definitions(sd2psx_common PUBLIC "WITH_LED=1")
-    target_sources(sd2psx_common PRIVATE
+    target_compile_definitions(flippermce_common PUBLIC "WITH_LED=1")
+    target_sources(flippermce_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
-
 endif()
 
-set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
+if (FLIPPERMCE)
+    target_compile_definitions(flippermce_common PUBLIC "FLIPPER=1")
+endif()
+
+set_target_properties(flippermce_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 pico_add_extra_outputs(${TARGET_NAME})
+set_property(TARGET ${TARGET_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
 
 
 
@@ -153,7 +157,7 @@ if(DEBUG_USB_UART)
     if (NOT ${DEBUG_STARTUP_DELAY} MATCHES "[0-9]+")
         message(FATAL_ERROR "Misconfigured Debug Startup Delay: ${DEBUG_STARTUP_DELAY}")
     endif()
-    target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=${DEBUG_STARTUP_DELAY}*1000)
+    target_compile_definitions(flippermce_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=${DEBUG_STARTUP_DELAY}*1000)
     pico_enable_stdio_usb(${TARGET_NAME} 1)
 else()
     pico_enable_stdio_usb(${TARGET_NAME} 0)

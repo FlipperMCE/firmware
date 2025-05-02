@@ -14,9 +14,14 @@
 #define LOG_LEVEL_PS2_MC     2
 #define LOG_LEVEL_PS2_HT     2
 #define LOG_LEVEL_PS2_S2M    2
-#define LOG_LEVEL_GUI        2
+#define LOG_LEVEL_GUI        3
 #define LOG_LEVEL_CARD_CONF  2
 #define LOG_LEVEL_PS1_MC     2
+#define LOG_LEVEL_PS1_MMCE   4
+#define LOG_LEVEL_GC_CM      2
+#define LOG_LEVEL_GC_MC      2
+#define LOG_LEVEL_GC_S2M     4
+#define LOG_LEVEL_GC_UL      4
 
 #define LOG_ERROR 1
 #define LOG_WARN 2
@@ -29,7 +34,7 @@ extern const char *log_level_str[];
 #define LOG_PRINT(file_level, level, fmt, x...) \
     do { \
         if (level <= file_level) { \
-            printf("%s C%i: "fmt, log_level_str[level], get_core_num(), ##x); \
+            buffered_printf("%s C%i: "fmt, log_level_str[level], get_core_num(), ##x); \
         } \
     } while (0);
 #else

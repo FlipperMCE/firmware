@@ -86,22 +86,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
 }
 
 static void card_config_get_ini_name(const char* card_folder, const char* card_base, char* config_path) {
-    if (settings_get_mode() == MODE_PS1) {
-        snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS1/%s/%s.ini", card_folder, card_base);
-    } else {
-        switch (settings_get_ps2_variant()) {
-            case PS2_VARIANT_PROTO:
-                snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PROT/%s/%s.ini", card_folder, card_base);
-            break;
-            case PS2_VARIANT_COH:
-                snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/COH/%s/%s.ini", card_folder, card_base);
-            break;
-            case PS2_VARIANT_RETAIL:
-            default:
-                snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS2/%s/%s.ini", card_folder, card_base);
-            break;
-        }
-    }
+    snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/GC/%s/%s.ini", card_folder, card_base);
     log(LOG_TRACE, "config_path=%s\n", config_path);
 
 }
@@ -126,7 +111,7 @@ void card_config_read_channel_name(const char* card_folder, const char* card_bas
     }
 }
 
-uint8_t card_config_get_ps2_cardsize(const char* card_folder, const char* card_base) {
+uint8_t card_config_get_gc_cardsize(const char* card_folder, const char* card_base) {
     char config_path[64];
     int fd;
     parse_card_config_t ctx = {
@@ -180,22 +165,7 @@ void card_config_get_card_folder(const char* game_id, char* card_folder, size_t 
         .card_folder_max_len = card_folder_max_len
     };
 
-    if (settings_get_mode() == MODE_PS1) {
-        snprintf(mode, sizeof(mode), "PS1");
-    } else {
-        switch (settings_get_ps2_variant()) {
-            case PS2_VARIANT_PROTO:
-                snprintf(mode, sizeof(mode), "PROT");
-            break;
-            case PS2_VARIANT_COH:
-                snprintf(mode, sizeof(mode), "COH");
-            break;
-            case PS2_VARIANT_RETAIL:
-            default:
-                snprintf(mode, sizeof(mode), "PS2");
-            break;
-        }
-    }
+    snprintf(mode, sizeof(mode), "GC");
     int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
     log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id, ctx.mode);
 

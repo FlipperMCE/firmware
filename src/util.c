@@ -7,6 +7,21 @@
 #include "sd.h"
 #include "game_db/game_db.h"
 
+uint16_t swap16(uint16_t data)
+{
+  return (data >> 8) | (data << 8);
+}
+
+uint32_t swap32(uint32_t data)
+{
+  return (swap16(data) << 16) | swap16(data >> 16);
+}
+
+uint64_t swap64(uint64_t data)
+{
+  return ((uint64_t)swap32(data) << 32) | swap32(data >> 32);
+}
+
 bool str_is_integer(const char *str) {
     int i = 0;
 

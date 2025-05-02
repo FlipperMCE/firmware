@@ -102,7 +102,7 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
     cmd_write[2] = (addr & 0xFF00) >> 8;
     cmd_write[3] = (addr & 0xFF);
 
-    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+    //dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
 
     static uint8_t zero = 0;
     channel_config_set_write_increment(&dma_tx_data_conf, false);
@@ -143,7 +143,7 @@ void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, 0, QSPI_DAT_MASK);
 
-    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+//    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
 
     static uint8_t zero = 0;
     channel_config_set_write_increment(&dma_tx_data_conf, false);
@@ -168,7 +168,7 @@ static void __time_critical_func(dma_rx_done)(void) {
     if (dma_channel_get_irq0_status(PIO_SPI_DMA_RX_DATA_CHAN)) {
         dma_channel_acknowledge_irq0(PIO_SPI_DMA_RX_DATA_CHAN);
         gpio_put(PSRAM_CS, 1);
-        dma_unclaim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+        //dma_unclaim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
 
         dma_active = false;
         if (dma_done_cb)
@@ -181,6 +181,8 @@ bool __time_critical_func(pio_qspi_dma_active)() {
 }
 
 void pio_qspi_dma_init(const pio_spi_inst_t *spi) {
+    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+
     dma_tx_cmd_conf = dma_channel_get_default_config(PIO_SPI_DMA_TX_CMD_CHAN);
     channel_config_set_transfer_data_size(&dma_tx_cmd_conf, DMA_SIZE_8);
     channel_config_set_dreq(&dma_tx_cmd_conf, pio_get_dreq(spi->pio, spi->sm, true));
