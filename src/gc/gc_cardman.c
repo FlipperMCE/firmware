@@ -224,10 +224,7 @@ static void checksum(uint8_t *buff,int32_t len,uint16_t *cs1,uint16_t *cs2)
       inv_csum = 0;
     *cs1 = csum;
     *cs2 = inv_csum;
-
-    printf("cs1: %04X cs2: %04X\n", *cs1, *cs2);
 }
-
 
 static void genblock(size_t pos, void *vbuf) {
     #define GC_POS_HEADER   0x0000

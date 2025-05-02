@@ -44,8 +44,7 @@ _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings str
 
 static settings_t settings;
 static serialized_settings_t serialized_settings;
-static int tempmode;
-static const char settings_path[] = "/.sd2psx/settings.ini";
+static const char settings_path[] = "/.flippermce/settings.ini";
 
 static void settings_update_part(void *settings_ptr, uint32_t sz);
 static void settings_serialize(void);
@@ -117,8 +116,8 @@ static void settings_serialize(void) {
         return;
     }
 
-    if (!sd_exists("/.sd2psx/")) {
-        sd_mkdir("/.sd2psx/");
+    if (!sd_exists("/.flippermce/")) {
+        sd_mkdir("/.flippermce/");
     }
     fd = sd_open(settings_path, O_RDWR | O_CREAT);
     if (fd >= 0) {
