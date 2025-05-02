@@ -21,7 +21,7 @@ jobs:
     #needs: create_release
     strategy:
       matrix:
-        target: [SD2PSX, SD2PSXlite, PMC+, PMCZero, PSXMemCard]
+        target: [FlipperMCE]
         debug: [ON, OFF]
         include:
           - debug: ON
@@ -30,16 +30,8 @@ jobs:
           - debug: OFF
             ext: .uf2
             delay: 0
-          - target: SD2PSX
-            filename: sd2psx
-          - target: SD2PSXlite
-            filename: sd2psxlite
-          - target: PMC+
-            filename: pmc+
-          - target: PMCZero
-            filename: pmczero
-          - target: PSXMemCard
-            filename: psxmemcard
+          - target: FlipperMCE
+            filename: flippermce
     steps:
     - uses: actions/checkout@v4
       with:
