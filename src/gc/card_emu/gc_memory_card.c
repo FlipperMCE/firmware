@@ -6,6 +6,7 @@
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 
+#include "mmceman/gc_mmceman.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
@@ -208,7 +209,7 @@ static void __time_critical_func(mc_probe)(void) {
 
 static void __time_critical_func(gc_mc_read)(void) {
     uint8_t offset[4] = {};
-    uint8_t _;
+
     uint32_t offset_u32 = 0;
     uint16_t i = 0;
 
@@ -295,11 +296,19 @@ static void __time_critical_func(mc_get_dev_id)(void) {
     gc_mc_respond(0xFF); // out byte 5
 }
 
+/**
+ * Command:  Set disc ID
+ * Request:  0x8B 11 aa aa aa aa bb bb cc cc dd dd
+ * Response: 0xXX XX XX XX XX XX XX XX XX XX XX XX
+ *
+ * Clears disc name as a side effect.
+*/
 static void __time_critical_func(mc_set_game_id)(void) {
     uint8_t id[10] = {};
     for (int i = 0; i < 10; i++) {
         gc_receiveOrNextCmd(&id[i]);
     }
+    gc_mmceman_set_gameid(id);
 }
 
 static uint8_t name[65] = { 0x00 };

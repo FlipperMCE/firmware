@@ -158,17 +158,17 @@ void __time_critical_func(gc_mmceman_queue_tx)(uint8_t byte)
 }
 
 bool __time_critical_func(gc_mmceman_set_gameid)(const uint8_t* const game_id) {
-    //char sanitized_game_id[11] = {0};
-    //bool ret = false;
-    //game_db_extract_title_id(game_id, sanitized_game_id, 16, sizeof(sanitized_game_id));
-    //log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
-    //if (game_db_sanity_check_title_id(sanitized_game_id)) {
-    //    snprintf(mmceman_gameid, sizeof(mmceman_gameid), "%s", sanitized_game_id);
-    //    mmceman_switching_timeout = 0U;
-    //    mmceman_cmd = MMCEMAN_SET_GAMEID;
-    //    ret = true;
-    //}
-    return false;
+    char sanitized_game_id[5] = {0};
+    bool ret = false;
+    memcpy(sanitized_game_id, game_id, sizeof(sanitized_game_id));
+    log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
+    if (game_id[0] != 0x00) {
+        snprintf(mmceman_gameid, sizeof(mmceman_gameid), "%s", sanitized_game_id);
+        mmceman_switching_timeout = 0U;
+        mmceman_cmd = MMCEMAN_SET_GAMEID;
+        ret = true;
+    }
+    return ret;
 }
 
 const char* gc_mmceman_get_gameid(void) {
