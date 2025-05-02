@@ -1,0 +1,104 @@
+Command:  Get device ID (early boot)
+Request:  0x00 00 XX XX XX XX
+Response: 0xXX XX 38 42 aa aa
+
+a: Version in big endian BCD (01.00)
+
+
+Command:  Get device ID
+Request:  0x8B 00 XX XX XX XX
+Response: 0xXX XX 38 42 aa aa
+
+a: Version in big endian BCD (01.00)
+
+
+Command:  Get access mode
+Request:  0x8B 01 XX
+Response: 0xXX XX aa
+
+a: 0x00 if in read-only mode, 0x01 if in exclusive read/write mode.
+
+
+Command:  Set access mode
+Request:  0x8B 02 aa
+Response: 0xXX XX XX
+
+Raises a EXI interrupt once internal processes have completed.
+
+
+Command:  Get disc ID
+Request:  0x8B 10 XX XX XX XX XX XX XX XX XX XX
+Response: 0xXX XX aa aa aa aa bb bb cc cc dd dd
+
+a: Game name (GZLE)
+b: Company name (01)
+c: Disc number, converted from BCD to ASCII (00)
+d: Game version number, converted from BCD to ASCII (00)
+X: Undefined
+
+
+Command:  Set disc ID
+Request:  0x8B 11 aa aa aa aa bb bb cc cc dd dd
+Response: 0xXX XX XX XX XX XX XX XX XX XX XX XX
+
+Clears disc name as a side effect.
+
+
+Command:  Get disc name
+Request:  0x8B 12 XX ...
+Response: 0xXX XX aa ...
+
+a: ASCII with nul terminator if shorter than 64 characters (THE LEGEND OF ZELDA The Wind Waker for USA\0)
+
+
+Command:  Set disc name
+Request:  0x8B 13 aa ...
+Response: 0xXX XX XX ...
+
+May be set without disc ID.
+
+
+Command:  Start read multiple block
+Request:  0x8B 20 aa aa aa aa bb bb bb bb
+Response: 0xXX XX XX XX XX XX XX XX XX XX
+
+a: Block number in big endian, 512-byte units
+b: Number of blocks in big endian
+
+Raises a EXI interrupt when ready to read first block.
+Upon first EXI interrupt, storage access is locked to the host system for the number of blocks.
+If only one block is requested, READ_SINGLE_BLOCK should be used.
+
+
+Command:  Read block
+Request:  0x8B 21 XX ...
+Response: 0xXX XX aa ...
+
+a: Block data, 512 bytes
+
+Raises a EXI interrupt when ready to read next block.
+Data is undefined if a read multiple block command isn't in progress.
+Must support 27 MHz operation.
+
+
+Command:  Start write multiple block
+Request:  0x8B 22 aa aa aa aa bb bb bb bb
+Response: 0xXX XX XX XX XX XX XX XX XX XX
+
+a: Block number in big endian, 512-byte units
+b: Number of blocks in big endian
+
+Raises a EXI interrupt when ready to write first block, if in exclusive read/write mode.
+Upon first EXI interrupt, storage access is locked to the host system for the number of blocks.
+If only one block is requested, WRITE_SINGLE_BLOCK should be used. SET_WR_BLK_ERASE_COUNT should be used with WRITE_MULTIPLE_BLOCK.
+
+
+Command:  Write block
+Request:  0x8B 23 aa ...
+Response: 0xXX XX XX ...
+
+a: Block data, 512 bytes
+
+Raises a EXI interrupt when ready to write next block.
+Data is ignored if a write multiple block command isn't in progress.
+Must support 27 MHz operation.
