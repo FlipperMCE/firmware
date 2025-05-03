@@ -40,9 +40,7 @@ endif()
 add_subdirectory(ext/)
 add_subdirectory(database)
 
-# SD2PSX Main Lib
-
-
+# FlipperMCE Main Lib
 add_executable(${TARGET_NAME}
     src/main.c
     src/gc.c
@@ -62,7 +60,7 @@ PRIVATE
     hardware_i2c
     hardware_flash
     gamedb
-    sd2psx_version
+    flippermce_version
     flippermce_common
     gc_card
     sd_fat
