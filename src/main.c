@@ -122,8 +122,8 @@ int main() {
     while (!bus_ctrl_hw->priority_ack) {}
 
     printf("\n\n\nStarted! Clock %d; bus priority 0x%X\n", (int)clock_get_hz(clk_sys), (unsigned)bus_ctrl_hw->priority);
-    printf("SD2PSX Version %s\n", sd2psx_version);
-    printf("SD2PSX HW Variant: %s\n", sd2psx_variant);
+    printf("SD2PSX Version %s\n", flippermce_version);
+    printf("SD2PSX HW Variant: %s\n", flippermce_variant);
 
     settings_init();
 

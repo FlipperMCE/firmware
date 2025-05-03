@@ -704,11 +704,11 @@ static void create_menu_screen(void) {
     {
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Version");
-        ui_label_create(cont, sd2psx_version);
+        ui_label_create(cont, flippermce_version);
 
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Commit");
-        ui_label_create(cont, sd2psx_commit);
+        ui_label_create(cont, flippermce_commit);
 
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Debug");
