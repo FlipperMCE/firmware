@@ -4,10 +4,7 @@
 #include <stdint.h>
 
 // Function declarations
-void gc_unlock_transform(uint32_t data, uint32_t lastdata, uint32_t *cntxt, uint8_t rotate);
-uint32_t gc_unlock_hash(const uint8_t *data, uint16_t length);
 void mc_unlock(void);
-
-
+void mc_unlock_stage_0(uint32_t offset_u32);
 
 #endif /* GC_UNLOCK_H */

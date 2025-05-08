@@ -28,7 +28,7 @@
 
 static uint64_t gc_us_startup;
 
-static volatile int reset;
+volatile int reset;
 
 typedef struct {
     uint32_t offset;
@@ -211,6 +211,7 @@ static void __time_critical_func(gc_mc_read)(void) {
     uint8_t offset[4] = {};
 
     uint32_t offset_u32 = 0;
+    uint32_t test_offset_u32 = 0;
     uint16_t i = 0;
 
     gc_receiveOrNextCmd(&offset[3]);
@@ -222,10 +223,16 @@ static void __time_critical_func(gc_mc_read)(void) {
     gc_receiveOrNextCmd(&offset[0]);
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
+    test_offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
 
-    if (pio_sm_is_rx_fifo_full(pio0, cmd_reader.sm)) {
-        DPRINTF("FIFO full\n");
+    if ((test_offset_u32 >= 0x7FEC8000)
+        && (test_offset_u32 <= 0x7FECF000)) {
+        // Cube expects re-unlock
+        card_state = 0x01;
+        mc_unlock();
+        return;
     }
+
     dma_channel_start(DMA_WAIT_CHAN);
 
     // Setup data read
@@ -350,6 +357,7 @@ static void __time_critical_func(mc_mce_cmd)(void) {
         case 0x13:
             mc_set_game_name();
             break;
+
         default:
             DPRINTF("Unknown command: %02x ", cmd);
             break;
