@@ -80,9 +80,12 @@ void gc_mmceman_task(void) {
 
             case MMCEMAN_SET_GAMEID:
             {
+                const char* game_id;
+                const char* region;
                 game_db_update_game(mmceman_gameid);
+                game_db_get_current_id(&game_id, &region);
 
-                gc_cardman_set_gameid(mmceman_gameid);
+                gc_cardman_set_gameid(game_id, region);
                 log(LOG_INFO, "%s: set game id\n", __func__);
                 break;
             }

@@ -18,8 +18,7 @@ typedef struct {
     uint8_t pad_0[2];
     uint8_t gc_channel;
     uint8_t gc_boot_channel;
-    uint8_t gc_flags; // TODO: single bit options: freepsxboot, pocketstation, freepsxboot slot
-    // TODO: more gc settings: model for freepsxboot
+    uint8_t gc_flags; // TODO: single bit options
     uint8_t sys_flags; // TODO: single bit options: whether gc or gc mode, etc
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
     uint8_t display_contrast; // display - contrast, 0-255
@@ -38,6 +37,7 @@ typedef struct {
 #define SETTINGS_VERSION_MAGIC             (0xAACE0000)
 #define SETTINGS_GC_FLAGS_AUTOBOOT         (0b0000001)
 #define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
+#define SETTINGS_GC_FLAGS_ENC              (0b0000100)  // Card Encoding Default is Japanese
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
@@ -60,6 +60,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
     } else if (MATCH("GC", "GameID")
         && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0))) {
         _s->gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    } else if (MATCH("GC", "Encoding")
+        && (strcmp(value, "JAP") != 0) != ((_s->gc_flags & SETTINGS_GC_FLAGS_ENC) > 0)) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_ENC;
     } else if (MATCH("GC", "CardSize")) {
         int size = atoi(value);
         switch (size) {
@@ -99,7 +102,6 @@ static void settings_deserialize(void) {
             settings.sys_flags       = newSettings.sys_flags;
             settings.gc_flags       = newSettings.gc_flags;
             settings.gc_cardsize    = newSettings.gc_cardsize;
-            settings.gc_flags       = newSettings.gc_flags;
 
             wear_leveling_write(0, &settings, sizeof(settings));
         }
@@ -111,8 +113,7 @@ static void settings_serialize(void) {
     // Only serialize if required
     if (serialized_settings.gc_cardsize == settings.gc_cardsize &&
         serialized_settings.gc_flags == settings.gc_flags &&
-        serialized_settings.sys_flags == settings.sys_flags &&
-        serialized_settings.gc_flags == settings.gc_flags) {
+        serialized_settings.sys_flags == settings.sys_flags) {
         return;
     }
 
@@ -133,6 +134,8 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "JAP" : "WORLD");
+        sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
         sd_write(fd, line_buffer, written);
 
@@ -141,7 +144,6 @@ static void settings_serialize(void) {
     serialized_settings.sys_flags       = settings.sys_flags;
     serialized_settings.gc_flags       = settings.gc_flags;
     serialized_settings.gc_cardsize    = settings.gc_cardsize;
-    serialized_settings.gc_flags       = settings.gc_flags;
 }
 
 static void settings_reset(void) {
@@ -262,6 +264,16 @@ bool settings_get_gc_game_id(void) {
 void settings_set_gc_game_id(bool enabled) {
     if (enabled != settings_get_gc_game_id())
         settings.gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    SETTINGS_UPDATE_FIELD(gc_flags);
+}
+
+bool settings_get_gc_encoding(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_ENC);
+}
+
+void settings_set_gc_encoding(bool enabled) {
+    if (enabled != settings_get_gc_encoding())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_ENC;
     SETTINGS_UPDATE_FIELD(gc_flags);
 }
 

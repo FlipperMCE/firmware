@@ -21,6 +21,8 @@ bool settings_get_gc_autoboot(void);
 void settings_set_gc_autoboot(bool autoboot);
 bool settings_get_gc_game_id(void);
 void settings_set_gc_game_id(bool enabled);
+bool settings_get_gc_encoding(void);
+void settings_set_gc_encoding(bool enabled);
 
 #define IDX_MIN 1
 #define IDX_BOOT 0

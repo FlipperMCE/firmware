@@ -45,7 +45,7 @@ typedef void (*cardman_cb_t)(int, bool);
 void gc_cardman_set_progress_cb(cardman_cb_t func);
 char *gc_cardman_get_progress_text(void);
 
-void gc_cardman_set_gameid(const char* game_id);
+void gc_cardman_set_gameid(const char *const card_game_id, const char *const region);
 const char* gc_cardman_get_folder_name(void);
 gc_cardman_state_t gc_cardman_get_state(void);
 

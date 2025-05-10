@@ -22,6 +22,22 @@
 #define MMCEMAN_MODE_NEXT 0x1
 #define MMCEMAN_MODE_PREV 0x2
 
+extern void (*mmceman_callback)(void);
+extern int mmceman_transfer_stage;
+
+extern volatile bool mmceman_tx_queued;
+extern volatile uint8_t mmceman_tx_byte;
+
+/* NOTE: Used to prevent mcman flushing old cache
+ * data to the new memcard after a memcard switch.
+ * mcman will invalidate handles and clear cache if
+ * it cannot detect the memcard after 5 retries. */
+extern volatile uint8_t mmceman_mcman_retry_counter;
+extern volatile bool mmceman_op_in_progress;
+extern volatile bool mmceman_timeout_detected;
+extern volatile bool mmceman_fs_abort_read;
+
+
 
 extern volatile uint8_t mmceman_cmd;
 extern volatile uint8_t mmceman_mode;

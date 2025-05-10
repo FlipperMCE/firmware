@@ -56,7 +56,7 @@ static int card_idx;
 static int card_chan;
 static bool needs_update;
 static uint32_t card_size;
-static uint8_t card_enc;
+static uint8_t card_enc = 0x1;
 static cardman_cb_t cardman_cb;
 static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static char cardhome[CARD_HOME_LENGTH];
@@ -67,6 +67,35 @@ static uint32_t cardprog_pos;
 static gc_cardman_state_t cardman_state;
 
 static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE } cardman_operation;
+
+static void update_encoding(void) {
+    switch (cardman_state) {
+        case GC_CM_STATE_GAMEID: {
+            const char *region;
+            game_db_get_current_region(&region);
+            if ((region != NULL) && (memcmp(region, "JAP", 3))) {
+                card_enc = 0;
+            } else {
+                card_enc = 1;
+            }
+        }
+        break;
+        case GC_CM_STATE_NAMED:
+            if ((strlen(folder_name) == (MAX_GAME_ID_LENGTH-1)) && (memcmp(&folder_name[12], "JAP", 3) == 0)) {
+                card_enc = 1;
+            } else {
+                card_enc = 0;
+            }
+            break;
+        case GC_CM_STATE_BOOT:
+        case GC_CM_STATE_NORMAL:
+        default:
+            card_enc = settings_get_gc_encoding() ? 1 : 0;
+            break;
+        break;
+    }
+    log(LOG_INFO, "card_enc=%d\n", card_enc);
+}
 
 static bool try_set_boot_card() {
     if (!settings_get_gc_autoboot())
@@ -90,19 +119,23 @@ static bool try_set_game_id_card() {
     if (!settings_get_gc_game_id())
         return false;
 
-    char id[MAX_GAME_ID_LENGTH] = {};
+    const char *id;
+    const char *region;
 
-    (void)game_db_get_current_id(id);
+    (void)game_db_get_current_id(&id, &region);
 
-    if (!id[0])
+    if (!id || !id[0])
         return false;
 
+    DPRINTF("Game ID: %s\n", id);
     card_idx = GC_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = GC_CM_STATE_GAMEID;
     card_config_get_card_folder(id, folder_name, sizeof(folder_name));
-    if (folder_name[0] == 0x00)
-        snprintf(folder_name, sizeof(folder_name), "%s", id);
+    if (folder_name[0] == 0x00) {
+        memset(folder_name, 0x00, sizeof(folder_name));
+        snprintf(folder_name, sizeof(folder_name), "DL-DOL-%c%c%c%c-%s", id[0], id[1], id[2], id[3], region);
+    }
 
     return true;
 }
@@ -425,6 +458,7 @@ void gc_cardman_open(void) {
 
     sd_init();
     ensuredirs();
+    update_encoding();
 
     switch (cardman_state) {
         case GC_CM_STATE_BOOT:
@@ -627,7 +661,7 @@ int gc_cardman_get_channel(void) {
     return card_chan;
 }
 
-void gc_cardman_set_gameid(const char *const card_game_id) {
+void gc_cardman_set_gameid(const char *const card_game_id, const char *const region) {
     if (!settings_get_gc_game_id())
         return;
 
@@ -635,7 +669,7 @@ void gc_cardman_set_gameid(const char *const card_game_id) {
     if (card_game_id[0]) {
         card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
         if (new_folder_name[0] == 0x00)
-            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+            snprintf(new_folder_name, sizeof(new_folder_name), "DL-DOL-%c%c%c%c-%s", card_game_id[0], card_game_id[1], card_game_id[2], card_game_id[3], region);
         log(LOG_TRACE, "Folder: %s\n", new_folder_name);
         if ((strcmp(new_folder_name, folder_name) != 0) || (GC_CM_STATE_GAMEID != cardman_state)) {
             card_idx = GC_CARD_IDX_SPECIAL;

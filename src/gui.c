@@ -42,7 +42,7 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot,
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
     *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip;
 
 static struct {
@@ -433,6 +433,13 @@ static void evt_gc_gameid(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_gc_encoding(lv_event_t *event) {
+    bool current = settings_get_gc_encoding();
+    settings_set_gc_encoding(!current);
+    lv_label_set_text(lbl_gc_encoding, !current ? "Japan" : "World");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_set_gc_cardsize(lv_event_t *event) {
     uint8_t cardsize = (intptr_t)event->user_data;
     settings_set_gc_cardsize(cardsize);
@@ -697,6 +704,11 @@ static void create_menu_screen(void) {
             lbl_gc_cardsize = ui_label_create(cont, text);
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
         }
+
+        cont = ui_menu_cont_create_nav(gc_page);
+        ui_label_create_grow_scroll(cont, "Encoding");
+        lbl_gc_encoding = ui_label_create(cont, settings_get_gc_encoding() ? " Japan" : " World");
+        lv_obj_add_event_cb(cont, evt_gc_encoding, LV_EVENT_CLICKED, NULL);
     }
 
     /* Info submenu */
@@ -906,6 +918,7 @@ void gui_task(void) {
                 game_db_get_current_name(card_name);
             }
             if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
+
                 game_db_get_game_name(folder_name, card_name);
             }
 
