@@ -4,8 +4,8 @@
 #include "debug.h"
 
 #include "bigmem.h"
-#define dirty_heap bigmem.ps2.dirty_heap
-#define dirty_map bigmem.ps2.dirty_map
+#define dirty_heap bigmem.gc.dirty_heap
+#define dirty_map bigmem.gc.dirty_map
 
 #include <hardware/sync.h>
 #include <pico/platform.h>

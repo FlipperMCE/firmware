@@ -664,7 +664,6 @@ static void create_menu_screen(void) {
     lv_obj_t *gc_page = ui_menu_subpage_create(menu, "Card Settings");
     {
 
-#ifdef FEAT_PS2_CARDSIZE
         /* cardsize submenu */
         lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
@@ -684,7 +683,6 @@ static void create_menu_screen(void) {
                 lv_obj_add_event_cb(cont, evt_set_gc_cardsize, LV_EVENT_CLICKED, (void *)(intptr_t)value);
             }
         }
-#endif
 
         cont = ui_menu_cont_create_nav(gc_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
