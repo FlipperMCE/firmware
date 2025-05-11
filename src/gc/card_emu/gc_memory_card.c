@@ -1,4 +1,5 @@
 #include "card_emu/gc_mc_data_interface.h"
+#include "card_emu/gc_memory_card.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "gc_cardman.h"
@@ -88,14 +89,16 @@ static void __time_critical_func(reset_pio)(void) {
 static void __time_critical_func(init_pio)(void) {
 
     /* Set all pins as floating inputs */
-    gpio_set_dir(PIN_PSX_SEL, 0);
-    gpio_set_dir(PIN_PSX_CLK, 0);
-    gpio_set_dir(PIN_PSX_CMD, 0);
-    gpio_set_dir(PIN_PSX_DAT, 0);
-    gpio_disable_pulls(PIN_PSX_SEL);
-    gpio_disable_pulls(PIN_PSX_CLK);
-    gpio_disable_pulls(PIN_PSX_CMD);
-    gpio_disable_pulls(PIN_PSX_DAT);
+    gpio_set_dir(PIN_GC_SEL, 0);
+    gpio_set_dir(PIN_GC_CLK, 0);
+    gpio_set_dir(PIN_GC_DI, 0);
+    gpio_set_dir(PIN_GC_DO, 0);
+    gpio_set_dir(PIN_MC_CONNECTED, 1);
+    gpio_disable_pulls(PIN_GC_SEL);
+    gpio_disable_pulls(PIN_GC_CLK);
+    gpio_disable_pulls(PIN_GC_DI);
+    gpio_disable_pulls(PIN_GC_DO);
+    gpio_disable_pulls(PIN_MC_CONNECTED);
 
     cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
     cmd_reader.sm = pio_claim_unused_sm(pio0, true);
@@ -110,19 +113,20 @@ static void __time_critical_func(init_pio)(void) {
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
     clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
 
-    gpio_init(PIN_PSX_ACK);
-    gpio_set_dir(PIN_PSX_ACK, GPIO_OUT);
-    gpio_put(PIN_PSX_ACK, 1);
+    gpio_init(PIN_GC_INT);
+    gpio_set_dir(PIN_GC_INT, GPIO_OUT);
+    gpio_put(PIN_GC_INT, 1);
+    gpio_put(PIN_MC_CONNECTED, 0);
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
-    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
+    if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         gc_card_active = false;
 //        drain_fifos();
         reset_pio();
-    } else if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
+    } else if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
         gc_card_active = true;
-        gpio_put(PIN_PSX_ACK, 1);
+        gpio_put(PIN_GC_INT, 1);
 
     }
 }
@@ -277,7 +281,7 @@ static void __time_critical_func(gc_mc_write)(void) {
     DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
     gc_mc_data_interface_write_mc(offset_u32, data, (i-1));
     sleep_us(2);
-    gpio_put(PIN_PSX_ACK, 0);
+    gpio_put(PIN_GC_INT, 0);
 }
 
 
@@ -292,7 +296,7 @@ static void __time_critical_func(mc_erase_sector)(void) {
     gc_mc_data_interface_erase(offset_u32);
     DPRINTF("E: %08x\n", offset_u32);
     sleep_us(2);
-    gpio_put(PIN_PSX_ACK, 0);
+    gpio_put(PIN_GC_INT, 0);
 }
 
 
@@ -433,11 +437,12 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
-
         memcard_running = 1;
 
         reset_pio();
+        gpio_put(PIN_MC_CONNECTED, 1);
         mc_main_loop();
+        gpio_put(PIN_MC_CONNECTED, 0);
         log(LOG_TRACE, "%s exit\n", __func__);
     }
 }
@@ -492,17 +497,17 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 void gc_memory_card_main(void) {
     multicore_lockout_victim_init();
     init_pio();
-    gpio_set_dir(PIN_PSX_ACK, true);
-    gpio_put(PIN_PSX_ACK, 1);
+    gpio_set_dir(PIN_GC_INT, true);
+    gpio_put(PIN_GC_INT, 1);
 
     gc_us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");
 
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
+    my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
+    my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
 
-    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
-    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(PIN_GC_DO, GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(PIN_GC_DO, GPIO_DRIVE_STRENGTH_12MA);
 
     mc_main();
 }

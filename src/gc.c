@@ -26,10 +26,7 @@
 void gc_init(void) {
     log(LOG_INFO, "starting in GC mode\n");
 
-
     multicore_launch_core1(gc_memory_card_main);
-
-
 
     gc_mc_data_interface_init();
 
