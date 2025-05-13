@@ -47,7 +47,7 @@ static game_lookup build_game_lookup(const char* const db_start, const size_t db
     game.game_id = game_db_char_array_to_uint32(&(db_start)[offset]);
     game.offset = offset;
     name_offset = game_db_char_array_to_uint32(&(db_start)[offset + 4]);
-    game.game_id_char = &(db_start)[offset + 4];
+    game.game_id_char = &(db_start)[offset];
     game.region = &(db_start)[offset + 8];
 
     if ((name_offset < db_size) && ((db_start)[name_offset] != 0x00))
