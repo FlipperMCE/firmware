@@ -26,13 +26,11 @@ target_link_libraries(gc_card PRIVATE
             sd_fat
             )
 
-if (SD2PSX_WITH_PSRAM)
-    target_link_libraries(gc_card PRIVATE
-            psram)
-    target_sources(gc_card PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/gc_dirty.c)
-    pico_generate_pio_header(gc_card ${CMAKE_CURRENT_LIST_DIR}/../psram/qspi.pio)
-endif()
+target_link_libraries(gc_card PRIVATE
+        psram)
+target_sources(gc_card PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/gc_dirty.c)
+pico_generate_pio_header(gc_card ${CMAKE_CURRENT_LIST_DIR}/../psram/qspi.pio)
 
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/card_emu/gc_mc_spi.pio ${CMAKE_CURRENT_BINARY_DIR}/gc_mc_spi.pio)

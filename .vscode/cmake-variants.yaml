@@ -19,34 +19,14 @@ buildType:
 hwvar:
     default: sd2psx
     choices:
-        sd2psx:
-            short: SD2PSX
-            long: SD2PSX Hardware
-            settings:
-                VARIANT: SD2PSX
-        pmc+:
-            short: PMC+
-            long: PMC+ Hardware
-            settings:
-                VARIANT: PMC+
-        PSXMemCard:
-            short: PSXMemCard
-            long: PSXMemCard Hardware
-            settings:
-                VARIANT: PSXMemCard
-        pmczero:
-            short: PMCZero
-            long: PMCZero Hardware
-            settings:
-                VARIANT: PMCZero
-        sd2psxlite:
-            short: SD2PSXlite
-            long: SD2PSX without PSRAM and OLED
-            settings:
-                VARIANT: SD2PSXlite
         flippermce:
             short: FlipperMCE
             long: FlipperMCE for Gamecube
             settings:
                 VARIANT: FlipperMCE
+        flippermce_alpha1:
+            short: FlipperMCE Alpha1
+            long: FlipperMCE for Gamecube Alpha1
+            settings:
+                VARIANT: FlipperMCE_a1
 

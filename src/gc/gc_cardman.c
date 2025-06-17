@@ -14,10 +14,9 @@
 
 #include "pico/multicore.h"
 #include "pico/platform.h"
-#if WITH_PSRAM
-    #include "gc_dirty.h"
-    #include "psram/psram.h"
-#endif
+#include "gc_dirty.h"
+#include "psram/psram.h"
+
 #include "sd.h"
 #include "settings.h"
 #include "util.h"
@@ -36,13 +35,10 @@
 
 static int sector_count = -1;
 
-#if WITH_PSRAM
+
 #define SECTOR_COUNT_4MB (8*1024*1024 / BLOCK_SIZE)
 uint8_t gc_available_sectors[SECTOR_COUNT_4MB / 8];  // bitmap
-#define PSRAM_AVAILABLE true
-#else
-#define PSRAM_AVAILABLE false
-#endif
+
 static uint8_t flushbuf[BLOCK_SIZE];
 int gc_cardman_fd = -1;
 
@@ -200,17 +196,11 @@ int gc_cardman_write_sector(int sector, void *buf512) {
 }
 
 bool gc_cardman_is_sector_available(int sector) {
-#if WITH_PSRAM
     return gc_available_sectors[sector / 8] & (1 << (sector % 8));
-#else
-    return true;
-#endif
 }
 
 void gc_cardman_mark_sector_available(int sector) {
-#if WITH_PSRAM
     gc_available_sectors[sector / 8] |= (1 << (sector % 8));
-#endif
 }
 
 void gc_cardman_set_priority_sector(int sector) {
@@ -554,9 +544,7 @@ void gc_cardman_close(void) {
     gc_cardman_fd = -1;
     current_read_sector = 0;
     priority_sector = -1;
-#if WITH_PSRAM
     memset(gc_available_sectors, 0, sizeof(gc_available_sectors));
-#endif
 }
 
 void gc_cardman_set_channel(uint16_t chan_num) {

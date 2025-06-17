@@ -11,10 +11,10 @@
 #include "pico/time.h"
 #include "gc_mc_data_interface.h"
 #include "bigmem.h"
-#if WITH_PSRAM
+
 #include "psram.h"
 #include "gc_dirty.h"
-#endif
+
 #include "gc_mc_internal.h"
 #include "gc_cardman.h"
 
@@ -141,7 +141,6 @@ static void gc_mc_data_interface_set_page(volatile gc_mcdi_page_t* page, uint32_
 }
 
 
-#if WITH_PSRAM
 static void __time_critical_func(gc_mc_data_interface_rx_done)() {
     dma_in_progress = false;
     gc_dirty_unlock();
@@ -158,7 +157,6 @@ void __time_critical_func(gc_mc_data_interface_start_dma)(volatile gc_mcdi_page_
     log(LOG_INFO, "%s start dma %zu\n", __func__, page_p->page);
     busy_cycle = true;
 }
-#endif
 
 
 
@@ -205,14 +203,12 @@ volatile gc_mcdi_page_t* __time_critical_func(gc_mc_data_interface_get_page)(uin
             }
         }
     } else {
-#if WITH_PSRAM
         ret = &readpages[get_core_num()];
         //if (!gc_cardman_is_sector_available(ret->page)) {
         //    gc_cardman_set_priority_sector(ret->page);
         //    while (!gc_cardman_is_sector_available(ret->page)) {} // wait for core 0 to load the sector into PSRAM
         //    gc_mc_data_interface_start_dma(ret);
         //}
-#endif
     }
     return ret;
 }
@@ -248,9 +244,7 @@ bool __time_critical_func(gc_mc_data_interface_delay_required)(void) {
 
 void gc_mc_data_interface_flush(void) {
     while ((sdmode && (op_fill_status() > 0))
-    #ifdef WITH_PSRAM
         || gc_dirty_activity > 0
-    #endif
     ) {
         gc_mc_data_interface_task();
     }
@@ -287,13 +281,10 @@ bool __time_critical_func(gc_mc_data_interface_data_available)(void) {
 
 
 inline void __time_critical_func(gc_mc_data_interface_wait_for_byte)(uint32_t offset) {
-#if WITH_PSRAM
     if (!sdmode) {
         if (offset <= GC_PAGE_SIZE)
             while (dma_in_progress && (psram_read_dma_remaining() >= (GC_PAGE_SIZE - offset))) {};
-    } else
-#endif
-    {
+    } else{
         if (get_core_num() != 0) {
             if (curr_read == NULL) {
                 log(LOG_ERROR, "%s: No read was set up : %u\n", __func__, offset);
@@ -362,9 +353,9 @@ void gc_mc_data_interface_card_changed(void) {
 
 void gc_mc_data_interface_init(void) {
     critical_section_init(&crit);
-#if WITH_PSRAM
+
     gc_dirty_init();
-#endif
+
     gc_mc_data_interface_card_changed();
     sdmode = false;
 }
@@ -437,9 +428,7 @@ void __time_critical_func(gc_mc_data_interface_task)(void) {
         }
         delay_reuired = op_fill_status() > 0;
     } else {
-#if WITH_PSRAM
-    gc_dirty_task();
-    busy_cycle = dma_in_progress;
-#endif
+        gc_dirty_task();
+        busy_cycle = dma_in_progress;
     }
 }
