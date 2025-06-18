@@ -416,6 +416,12 @@ static void __time_critical_func(mc_main_loop)(void) {
                 gc_mc_respond(card_state);
                 //card_state = 0x41;
                 break;
+            case 0x85:
+                //gc_mc_respond(0xFF); // <-- this is second byte of the response already
+                gc_receiveOrNextCmd(&_);
+                gc_mc_respond(0x01); // out byte 3
+                gc_mc_respond(0x01); // out byte 4
+                break;
             case 0x89:
                 //card_state = 0x41;
                 break;
