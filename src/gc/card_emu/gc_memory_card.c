@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "hardware/structs/iobank0.h"
 
 #include "mmceman/gc_mmceman.h"
 #include "pico/multicore.h"
@@ -65,23 +66,9 @@ static void __time_critical_func(reset_pio)(void) {
     pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
+//    pio_sm_clear_fifos(pio0, dat_writer.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm) );
-
-
-    dma_wait_config = dma_channel_get_default_config(DMA_WAIT_CHAN);
-    channel_config_set_read_increment(&dma_wait_config, false);
-    channel_config_set_write_increment(&dma_wait_config, false); // Changed to false to write to same location
-    channel_config_set_transfer_data_size(&dma_wait_config, DMA_SIZE_8);
-    channel_config_set_dreq(&dma_wait_config, pio_get_dreq(pio0, cmd_reader.sm, false));
-    dma_channel_configure(
-        DMA_WAIT_CHAN,                 // Channel to be configured
-        &dma_wait_config,         // The configuration we just created
-        &_,            // Single byte destination address
-        &pio0->rxf[cmd_reader.sm],  // Source address
-        GC_MC_LATENCY_CYCLES,                    // Number of transfers
-        false                   // Start immediately
-    );
 
     reset = 1;
 }
@@ -93,12 +80,10 @@ static void __time_critical_func(init_pio)(void) {
     gpio_set_dir(PIN_GC_CLK, 0);
     gpio_set_dir(PIN_GC_DI, 0);
     gpio_set_dir(PIN_GC_DO, 0);
-    gpio_set_dir(PIN_MC_CONNECTED, 1);
     gpio_disable_pulls(PIN_GC_SEL);
     gpio_disable_pulls(PIN_GC_CLK);
     gpio_disable_pulls(PIN_GC_DI);
     gpio_disable_pulls(PIN_GC_DO);
-    gpio_disable_pulls(PIN_MC_CONNECTED);
 
     cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
     cmd_reader.sm = pio_claim_unused_sm(pio0, true);
@@ -114,9 +99,27 @@ static void __time_critical_func(init_pio)(void) {
     clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
 
     gpio_init(PIN_GC_INT);
+    gpio_init(PIN_MC_CONNECTED);
     gpio_set_dir(PIN_GC_INT, GPIO_OUT);
+    gpio_set_dir(PIN_MC_CONNECTED, GPIO_OUT);
+
     gpio_put(PIN_GC_INT, 1);
     gpio_put(PIN_MC_CONNECTED, 0);
+
+
+    dma_wait_config = dma_channel_get_default_config(DMA_WAIT_CHAN);
+    channel_config_set_read_increment(&dma_wait_config, false);
+    channel_config_set_write_increment(&dma_wait_config, false); // Changed to false to write to same location
+    channel_config_set_transfer_data_size(&dma_wait_config, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_wait_config, pio_get_dreq(pio0, cmd_reader.sm, false));
+    dma_channel_configure(
+        DMA_WAIT_CHAN,                 // Channel to be configured
+        &dma_wait_config,         // The configuration we just created
+        &_,            // Single byte destination address
+        &pio0->rxf[cmd_reader.sm],  // Source address
+        GC_MC_LATENCY_CYCLES,                    // Number of transfers
+        false                   // Start immediately
+    );
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
@@ -226,18 +229,20 @@ static void __time_critical_func(gc_mc_read)(void) {
     gc_mc_respond(0xFF); // out byte 5
     gc_receiveOrNextCmd(&offset[0]);
 
+    dma_channel_start(DMA_WAIT_CHAN);
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
     test_offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
 
     if ((test_offset_u32 >= 0x7FEC8000)
         && (test_offset_u32 <= 0x7FECF000)) {
+       // printf("Re-Auth!!\n");
         // Cube expects re-unlock
         card_state = 0x01;
-        mc_unlock();
+        mc_unlock_stage_0(test_offset_u32);
+        //mc_unlock();
         return;
     }
 
-    dma_channel_start(DMA_WAIT_CHAN);
 
     // Setup data read
     gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
@@ -317,7 +322,7 @@ static void __time_critical_func(mc_get_dev_id)(void) {
 static void __time_critical_func(mc_set_game_id)(void) {
     uint8_t id[10] = {};
     for (int i = 0; i < 10; i++) {
-        gc_receiveOrNextCmd(&id[i]);
+        gc_receive(&id[i]);
     }
     gc_mmceman_set_gameid(id);
 }
@@ -363,7 +368,7 @@ static void __time_critical_func(mc_mce_cmd)(void) {
             break;
 
         default:
-            DPRINTF("Unknown command: %02x ", cmd);
+            DPRINTF("MCE: Unknown command: %02x ", cmd);
             break;
     }
 }
@@ -394,7 +399,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         switch (cmd) {
             case 0x00:
-                gc_mc_respond(0xFF); // <-- this is second byte of the response already
+                //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 mc_probe();
                 break;
             case 0x52:
@@ -439,6 +444,9 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mc_enter_response = 1;
         memcard_running = 1;
 
+        while (!gc_cardman_is_idle());
+        mc_generateId();
+
         reset_pio();
         gpio_put(PIN_MC_CONNECTED, 1);
         mc_main_loop();
@@ -451,6 +459,7 @@ static gpio_irq_callback_t callbacks[NUM_CORES];
 
 static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t events) {
     check_gpio_param(gpio);
+
     iobank0_hw->intr[gpio / 8] = events << (4 * (gpio % 8));
 }
 
@@ -536,7 +545,6 @@ void gc_memory_card_enter(void) {
 
     mc_enter_request = 1;
     while (!mc_enter_response) {}
-    mc_generateId();
     mc_enter_request = mc_enter_response = 0;
 }
 
