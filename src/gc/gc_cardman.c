@@ -255,8 +255,7 @@ static void genblock(size_t pos, void *vbuf) {
     #define GC_POS_DIRENT_2 0x6000 - 0x200
     #define GC_POS_FAT_1    0x6000
     #define GC_POS_FAT_2    0x8000
-    #define GC_CARDSIZE_MB  (card_size / (1024 * 1024))
-    #define GC_CARDSIZE     (GC_CARDSIZE_MB*8)
+    #define GC_CARDSIZE     ((card_size * 8) / (1024 * 1024))
     #define GC_FREEBLOCKS   ((((GC_CARDSIZE<<20)>>3)/0x0002000)-5)
     if (pos == GC_POS_HEADER) {
         uint8_t *buf = vbuf;
@@ -495,7 +494,7 @@ void gc_cardman_open(void) {
         cardprog_pos = 0;
 
         if (gc_cardman_fd < 0)
-            fatal("cannot open for creating new card");
+            fatal("cannot open for creating new card (%s), size %d", path, card_size);
 
         log(LOG_INFO, "create new image at %s... ", path);
 
