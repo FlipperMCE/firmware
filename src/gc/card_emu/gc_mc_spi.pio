@@ -35,13 +35,18 @@
     wait 0 gpio PIN_GC_SEL           ; wait for initial chip select
     set pins  1                       ; configure DAT pin for output
 .wrap_target
-    jmp !osre bit_loop
+    jmp !osre start
     pull block                        ; get first byte ready
-    wait 1 irq 6                      ; wait for clock program to signal start
-bit_loop:
+    wait 1 irq 6                      ; wait for clock program to end of last byte
+    wait 0 gpio PIN_GC_CLK            ; wait for falling edge
+
+start:
     out pins, 1                       ; output next bit
+bit_loop:
     wait 1 gpio PIN_GC_CLK
+    out pins, 1                       ; output next bit
     wait 0 gpio PIN_GC_CLK
+    jmp !osre bit_loop
 ;    jmp !osre bit_loop
 ;    jmp x-- bit_loop                  ; continue until byte complete
 ;    out pins, 1                       ; output next bit
@@ -52,15 +57,18 @@ bit_loop:
 
 .program clock_probe
     wait 0 gpio PIN_GC_SEL           ; wait for chip select
-.wrap_target
     irq set 6                         ; signal start of byte
-    set x, 7                          ; count 8 bits (7 down to 0)
+.wrap_target
+    set x, 6                          ; count 7 bits (6 down to 0)
+    wait 0 gpio PIN_GC_CLK           ; wait for falling edge
 
 bit_wait:
     wait 1 gpio PIN_GC_CLK           ; wait for rising edge
     irq clear 6
     wait 0 gpio PIN_GC_CLK           ; wait for falling edge
     jmp x-- bit_wait                  ; continue for all 8 bits
+    wait 1 gpio PIN_GC_CLK           ; wait for rising edge
+    irq set 6
 .wrap                                 ; wrap for next byte
 
 % c-sdk {
