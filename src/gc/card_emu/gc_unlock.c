@@ -283,25 +283,18 @@ void __time_critical_func(mc_unlock)(void) {
         log(LOG_TRACE, "Unlock Msg2: Last cipher is %08x\n", card_cipher);
         log(LOG_TRACE, "Unlock Msg2: Key is %08x %08x %08x %08x %08x - len %u \n", a, b, c, d, e, len);
     } else if (unlock_stage == 2) {
-        uint32_t a,b,c, d, e;
         uint8_t len = 0;
-        uint8_t *a_pu8 = (uint8_t*)&a,
-        *b_pu8 = (uint8_t*)&b,
-        *c_pu8 = (uint8_t*)&c,
-        *d_pu8 = (uint8_t*)&d,
-        *e_pu8 = (uint8_t*)&e;
         gc_receiveOrNextCmd(&offset[3]);
         gc_receiveOrNextCmd(&offset[2]);
         offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
         gc_receiveOrNextCmd(&offset[1]);
         gc_receiveOrNextCmd(&offset[0]);
         dma_channel_start(DMA_WAIT_CHAN);
-        //len -= 20;
+
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
         gc_mc_respond(0xFF);
         while(gc_receive(&_) != RECEIVE_RESET) {
             len++;
-            gc_mc_respond(0xFF);
         }
         msg3_len_u32 = len;
         log(LOG_TRACE, "Unlock Msg3: Raw: %08x / %u\n", *(uint32_t*)offset, len);
@@ -310,13 +303,6 @@ void __time_critical_func(mc_unlock)(void) {
         unlock_stage++;
 
     } else {
-        uint32_t a,b,c, d, e;
-        uint8_t len = 0;
-        uint8_t *a_pu8 = (uint8_t*)&a,
-        *b_pu8 = (uint8_t*)&b,
-        *c_pu8 = (uint8_t*)&c,
-        *d_pu8 = (uint8_t*)&d,
-        *e_pu8 = (uint8_t*)&e;
         gc_receiveOrNextCmd(&offset[3]);
         gc_receiveOrNextCmd(&offset[2]);
         offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
@@ -324,18 +310,13 @@ void __time_critical_func(mc_unlock)(void) {
         gc_receiveOrNextCmd(&offset[0]);
         dma_channel_start(DMA_WAIT_CHAN);
 
-        //len -= 20;
-        while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
-        gc_mc_respond(0xFF);
-
-
-        //log(LOG_TRACE, "Unlock Msg4: Raw: %08x / %u\n", *(uint32_t*)offset, len);
-
-        //log(LOG_TRACE, "Unlock Msg4: Unlock: %08x / %u\n", offset_u32, len);
-
-
         card_state = 0x41;
         unlock_stage = 0;
+        while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
+        DPRINTF("Unlock Msg4 \n");
+
+        //gc_mc_respond(0xFF);
+
     }
     return;
 
