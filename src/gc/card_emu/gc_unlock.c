@@ -269,9 +269,10 @@ void __time_critical_func(mc_unlock)(void) {
         }
         update_cipher(&card_cipher,((len + GC_MC_LATENCY_CYCLES) << 3) + 1);
 
-        log(LOG_TRACE, "Unlock Msg2: Serial is ");
-        for (int i = 0; i < 12; i++)
-            DPRINTF("%02x ", page->data[i]);
+        log(LOG_TRACE, "Unlock Msg2: Serial is %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x  \n",
+            flash_id[0], flash_id[1], flash_id[2], flash_id[3],
+            flash_id[4], flash_id[5], flash_id[6], flash_id[7],
+            flash_id[8], flash_id[9], flash_id[10], flash_id[11]);
         log(LOG_TRACE, "\n");
 
         log(LOG_TRACE, "Unlock Msg2: Flash ID is ");
