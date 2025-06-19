@@ -259,9 +259,9 @@ static void __time_critical_func(gc_mc_read)(void) {
 
 
     // Setup data read
-    gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
+    gc_mc_data_interface_setup_read_page(offset_u32/512U, true);
 
-    volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page(offset_u32/512U);
+    volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page();
     if (page->page_state != PAGE_DATA_AVAILABLE) {
         log(LOG_ERROR, "%s: page %u not available\n", __func__, offset_u32/512U);
         return;
