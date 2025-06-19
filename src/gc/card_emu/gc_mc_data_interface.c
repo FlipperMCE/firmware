@@ -262,10 +262,11 @@ void __time_critical_func(gc_mc_data_interface_erase)(uint32_t page) {
         gc_dirty_lockout_renew();
         gc_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
+            gc_dirty_lockout_renew();
             psram_write_dma(page_base + (i * GC_PAGE_SIZE), erasebuff, GC_PAGE_SIZE, NULL);
             psram_wait_for_dma();
-            gc_cardman_mark_sector_available(page_base + (i * GC_PAGE_SIZE));
-            gc_dirty_mark(page_base + (i * GC_PAGE_SIZE));
+            gc_cardman_mark_segment_available(page_base + (i * GC_PAGE_SIZE));
+            gc_dirty_mark(page_base/GC_PAGE_SIZE + i);
         }
         gc_dirty_unlock();
     }
