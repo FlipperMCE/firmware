@@ -18,11 +18,12 @@ extern int gc_cardman_fd;
 
 void gc_cardman_init(void);
 void gc_cardman_task(void);
-int gc_cardman_read_sector(int sector, void *buf512);
-int gc_cardman_write_sector(int sector, void *buf512);
-bool gc_cardman_is_sector_available(int sector);
-void gc_cardman_mark_sector_available(int sector);
-void gc_cardman_set_priority_sector(int page_idx);
+int gc_cardman_read_segment(int segment, void *buf512);
+int gc_cardman_write_segment(int segment, void *buf512);
+int gc_cardman_write_page(int addr, void *buf128);
+bool gc_cardman_is_segment_available(int segment);
+void gc_cardman_mark_segment_available(int segment);
+void gc_cardman_set_priority_segment(int segment);
 void gc_cardman_flush(void);
 void gc_cardman_open(void);
 void gc_cardman_close(void);

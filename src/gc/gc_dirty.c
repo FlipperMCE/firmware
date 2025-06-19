@@ -40,7 +40,7 @@ void gc_dirty_init(void) {
 }
 
 void __time_critical_func(gc_dirty_mark)(uint32_t sector) {
-    if (sector < (sizeof(dirty_map) * 8)) {
+    if (sector < (sizeof(dirty_map) * 8) ) {
         /* already marked? */
         if (dirty_map_is_marked(sector))
             return;
@@ -115,18 +115,18 @@ void gc_dirty_task(void) {
         gc_dirty_unlock();
 
         ++hit;
-        ret = gc_cardman_write_sector(sector, flushbuf);
+        ret = gc_cardman_write_segment(sector, flushbuf);
 
         if (ret != 0) {
             // TODO: do something if we get too many errors?
             // for now lets push it back into the heap and try again later
             DPRINTF("!! writing sector 0x%x failed: %i\n", sector, ret);
+            DPRINTF("Adress: 0x%08x\n", sector * 512);
 
             gc_dirty_lock();
             gc_dirty_mark(sector);
             gc_dirty_unlock();
         }
-        //DPRINTF("Writing %u\n", sector);
     }
     /* to make sure writes hit the storage medium */
     gc_cardman_flush();

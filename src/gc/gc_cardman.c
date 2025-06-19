@@ -28,21 +28,24 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GC_CM, level, fmt, ##x)
 #endif
 
-#define BLOCK_SIZE   (512)
+#define SECTOR_SIZE    (8192)
+#define SEGMENT_SIZE   (512)
+#define PAGE_SIZE      (128)
+
 
 #define CARD_HOME_GC        "MemoryCards/GC"
 #define CARD_HOME_LENGTH    (17)
 
-static int sector_count = -1;
+static int segment_count = -1;
 
 
-#define SECTOR_COUNT_4MB (8*1024*1024 / BLOCK_SIZE)
-uint8_t gc_available_sectors[SECTOR_COUNT_4MB / 8];  // bitmap
+#define SEgment_COUNT_4MB (8*1024*1024 / SEGMENT_SIZE)
+uint8_t gc_available_segments[SEgment_COUNT_4MB / 8];  // bitmap
 
-static uint8_t flushbuf[BLOCK_SIZE];
+static uint8_t flushbuf[SEGMENT_SIZE];
 int gc_cardman_fd = -1;
 
-static int current_read_sector = 0, priority_sector = -1;
+static int current_read_segment = 0, priority_segment = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
@@ -57,7 +60,7 @@ static cardman_cb_t cardman_cb;
 static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static char cardhome[CARD_HOME_LENGTH];
 static uint64_t cardprog_start;
-static int cardman_sectors_done;
+static int cardman_segments_done;
 static uint32_t cardprog_pos;
 
 static gc_cardman_state_t cardman_state;
@@ -136,14 +139,14 @@ static bool try_set_game_id_card() {
     return true;
 }
 
-int gc_cardman_read_sector(int sector, void *buf512) {
+int gc_cardman_read_segment(int segment, void *buf512) {
     if (gc_cardman_fd < 0)
         return -1;
 
-    if (sd_seek(gc_cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
+    if (sd_seek(gc_cardman_fd, segment * SEGMENT_SIZE, SEEK_SET) != 0)
         return -1;
 
-    if (sd_read(gc_cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_read(gc_cardman_fd, buf512, SEGMENT_SIZE) != SEGMENT_SIZE)
         return -1;
 
     return 0;
@@ -182,29 +185,43 @@ static bool try_set_prev_named_card() {
     return ret;
 }
 
-int gc_cardman_write_sector(int sector, void *buf512) {
+int gc_cardman_write_segment(int segment, void *buf512) {
     if (gc_cardman_fd < 0)
         return -1;
 
-    if (sd_seek(gc_cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
+    if (sd_seek(gc_cardman_fd, segment * SEGMENT_SIZE, SEEK_SET) != 0)
         return -2;
 
-    if (sd_write(gc_cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_write(gc_cardman_fd, buf512, SEGMENT_SIZE) != SEGMENT_SIZE)
         return -3;
 
     return 0;
 }
 
-bool gc_cardman_is_sector_available(int sector) {
-    return gc_available_sectors[sector / 8] & (1 << (sector % 8));
+
+int gc_cardman_write_page(int addr, void *buf128) {
+    if (gc_cardman_fd < 0)
+        return -1;
+
+    if (sd_seek(gc_cardman_fd, addr, SEEK_SET) != 0)
+        return -2;
+
+    if (sd_write(gc_cardman_fd, buf128, PAGE_SIZE) != PAGE_SIZE)
+        return -3;
+
+    return 0;
 }
 
-void gc_cardman_mark_sector_available(int sector) {
-    gc_available_sectors[sector / 8] |= (1 << (sector % 8));
+bool gc_cardman_is_segment_available(int segment) {
+    return gc_available_segments[segment / 8] & (1 << (segment % 8));
 }
 
-void gc_cardman_set_priority_sector(int sector) {
-    priority_sector = sector;
+void gc_cardman_mark_segment_available(int segment) {
+    gc_available_segments[segment / 8] |= (1 << (segment % 8));
+}
+
+void gc_cardman_set_priority_segment(int segment) {
+    priority_segment = segment;
 }
 
 void gc_cardman_flush(void) {
@@ -332,19 +349,19 @@ static void genblock(size_t pos, void *vbuf) {
     }
 }
 
-static int next_sector_to_load() {
-    if (priority_sector != -1) {
-        if (gc_cardman_is_sector_available(priority_sector))
-            priority_sector = -1;
+static int next_segment_to_load() {
+    if (priority_segment != -1) {
+        if (gc_cardman_is_segment_available(priority_segment))
+            priority_segment = -1;
         else
-            return priority_sector;
+            return priority_segment;
     }
 
-    while (current_read_sector < sector_count) {
-        if (!gc_cardman_is_sector_available(current_read_sector))
-            return current_read_sector++;
+    while (current_read_segment < segment_count) {
+        if (!gc_cardman_is_segment_available(current_read_segment))
+            return current_read_segment++;
         else
-            current_read_sector++;
+            current_read_segment++;
     }
 
     return -1;
@@ -359,11 +376,12 @@ static void gc_cardman_continue(void) {
             log(LOG_TRACE, "Slice!\n");
 
             gc_dirty_lock();
-            int sector_idx = next_sector_to_load();
-            if (sector_idx == -1) {
+            int segment_idx = next_segment_to_load();
+            if (segment_idx == -1) {
                 gc_dirty_unlock();
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
+
                 log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
                     1000000.0 * card_size / (end - cardprog_start) / 1024);
                 if (cardman_cb)
@@ -371,35 +389,35 @@ static void gc_cardman_continue(void) {
                 break;
             }
 
-            size_t pos = sector_idx * BLOCK_SIZE;
+            size_t pos = segment_idx * SEGMENT_SIZE;
             if (sd_seek(gc_cardman_fd, pos, 0) != 0)
                 fatal("cannot read memcard\nseek");
 
-            if (sd_read(gc_cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+            if (sd_read(gc_cardman_fd, flushbuf, SEGMENT_SIZE) != SEGMENT_SIZE)
                 fatal("cannot read memcard\nread %u", pos);
 
             log(LOG_TRACE, "Writing pos %u\n", pos);
-            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_write_dma(pos, flushbuf, SEGMENT_SIZE, NULL);
 
             psram_wait_for_dma();
 
-            gc_cardman_mark_sector_available(sector_idx);
+            gc_cardman_mark_segment_available(segment_idx);
             gc_dirty_unlock();
 
-            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+            cardprog_pos = cardman_segments_done * SEGMENT_SIZE;
 
             if (cardman_cb)
                 cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, false);
 
-            cardman_sectors_done++;
+            cardman_segments_done++;
         }
         log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
 
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        sd_seek(gc_cardman_fd, cardprog_pos * BLOCK_SIZE, SEEK_SET);
+        sd_seek(gc_cardman_fd, cardprog_pos * SEGMENT_SIZE, SEEK_SET);
         while ((time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
-            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+            cardprog_pos = cardman_segments_done * SEGMENT_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(gc_cardman_fd);
                 log(LOG_INFO, "OK!\n");
@@ -415,14 +433,14 @@ static void gc_cardman_continue(void) {
                 break;
             }
 
+                psram_wait_for_dma();
                 gc_dirty_lock();
+
+                // read back from PSRAM to make sure to retain already rewritten segments, if any
+                psram_read_dma(cardprog_pos, flushbuf, SEGMENT_SIZE, NULL);
                 psram_wait_for_dma();
 
-                // read back from PSRAM to make sure to retain already rewritten sectors, if any
-                psram_read_dma(cardprog_pos, flushbuf, BLOCK_SIZE, NULL);
-                psram_wait_for_dma();
-
-                if (sd_write(gc_cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                if (sd_write(gc_cardman_fd, flushbuf, SEGMENT_SIZE) != SEGMENT_SIZE)
                     fatal("cannot init memcard");
 
                 gc_dirty_unlock();
@@ -431,7 +449,7 @@ static void gc_cardman_continue(void) {
             if (cardman_cb)
                 cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, cardman_operation == CARDMAN_IDLE);
 
-            cardman_sectors_done++;
+            cardman_segments_done++;
         }
         sd_flush(gc_cardman_fd);
 
@@ -490,7 +508,7 @@ void gc_cardman_open(void) {
         }
         cardman_operation = CARDMAN_CREATE;
         gc_cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
-        cardman_sectors_done = 0;
+        cardman_segments_done = 0;
         cardprog_pos = 0;
 
         if (gc_cardman_fd < 0)
@@ -501,13 +519,13 @@ void gc_cardman_open(void) {
         if (cardman_cb)
             cardman_cb(0, false);
         // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
-        for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
+        for (size_t pos = 0; pos < card_size; pos += SEGMENT_SIZE) {
             genblock(pos, flushbuf);
 
             gc_dirty_lock();
-            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_write_dma(pos, flushbuf, SEGMENT_SIZE, NULL);
             psram_wait_for_dma();
-            gc_cardman_mark_sector_available(pos / BLOCK_SIZE);
+            gc_cardman_mark_segment_available(pos / SEGMENT_SIZE);
             gc_dirty_unlock();
         }
         log(LOG_TRACE, "%s created empty PSRAM image... \n", __func__);
@@ -518,7 +536,7 @@ void gc_cardman_open(void) {
         card_size = sd_filesize(gc_cardman_fd);
         cardman_operation = CARDMAN_OPEN;
         cardprog_pos = 0;
-        cardman_sectors_done = 0;
+        cardman_segments_done = 0;
 
         if (gc_cardman_fd < 0)
             fatal("cannot open card");
@@ -530,7 +548,7 @@ void gc_cardman_open(void) {
             cardman_cb(0, false);
     }
 
-    sector_count = card_size / BLOCK_SIZE;
+    segment_count = card_size / SEGMENT_SIZE;
 
     log(LOG_INFO, "Open Finished!\n");
 }
@@ -541,9 +559,9 @@ void gc_cardman_close(void) {
     gc_cardman_flush();
     sd_close(gc_cardman_fd);
     gc_cardman_fd = -1;
-    current_read_sector = 0;
-    priority_sector = -1;
-    memset(gc_available_sectors, 0, sizeof(gc_available_sectors));
+    current_read_segment = 0;
+    priority_segment = -1;
+    memset(gc_available_segments, 0, sizeof(gc_available_segments));
 }
 
 void gc_cardman_set_channel(uint16_t chan_num) {

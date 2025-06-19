@@ -1,18 +1,17 @@
 cmake_minimum_required(VERSION 3.12)
 # Pico SDK
+
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
 include(pico_sdk_import.cmake)
 
-project(SD2PSXTD LANGUAGES C CXX ASM)
+project(FLIPPERMCE LANGUAGES C CXX ASM)
 
 pico_sdk_init()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
-option(SD2PSX_WITH_PSRAM "Build SD2PSX with PSRAM support" ON)
-option(SD2PSX_WITH_GUI   "Build SD2PSX with GUI support" ON)
-option(SD2PSX_WITH_LED   "Build SD2PSX with LED support" OFF)
+option(FLIPPERMCE_WITH_GUI   "Build FlipperMCE with GUI support" ON)
 option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
 # variants
@@ -34,9 +33,7 @@ add_subdirectory(src/version)
 
 add_subdirectory(src/gc)
 
-if (SD2PSX_WITH_PSRAM)
-    add_subdirectory(src/psram)
-endif()
+add_subdirectory(src/psram)
 add_subdirectory(ext/)
 add_subdirectory(database)
 
@@ -115,11 +112,8 @@ target_compile_definitions(flippermce_common PUBLIC
                             USE_SPI_ARRAY_TRANSFER=1
                             -DFEAT_PS2_CARDSIZE=1
                             -DFEAT_PS2_MMCE=1)
-if (SD2PSX_WITH_PSRAM)
-    target_compile_definitions(flippermce_common PUBLIC "WITH_PSRAM=1")
-endif()
 
-if (SD2PSX_WITH_GUI)
+if (FLIPPERMCE_WITH_GUI)
     target_compile_definitions(flippermce_common PUBLIC "WITH_GUI=1")
     target_sources(flippermce_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
@@ -131,12 +125,6 @@ if (SD2PSX_WITH_GUI)
                     lvgl::lvgl
                 PRIVATE
                     ssd1306)
-endif()
-
-if (SD2PSX_WITH_LED)
-    target_compile_definitions(flippermce_common PUBLIC "WITH_LED=1")
-    target_sources(flippermce_common PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
 endif()
 
 if (FLIPPERMCE)
