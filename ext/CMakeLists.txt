@@ -54,11 +54,7 @@ target_link_libraries(sd_fat
 
 target_link_libraries(sd_fat PRIVATE flippermce_common)
 
-if (WITH_PSRAM)
-    target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
-else()
-    target_compile_definitions(sd_fat PRIVATE NUM_FILES=8)
-endif()
+target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
 
 
 add_library(ssd1306 STATIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306/ssd1306.c)
