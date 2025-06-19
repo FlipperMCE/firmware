@@ -41,7 +41,7 @@ static pio_t cmd_reader, dat_writer, clock_probe;
 static uint8_t interrupt_enable = 0;
 uint8_t card_state;
 
-static dma_channel_config dma_wait_config;
+static dma_channel_config dma_wait_config, dma_write_config;
 static uint8_t _;
 
 
@@ -118,6 +118,20 @@ static void __time_critical_func(init_pio)(void) {
         &_,            // Single byte destination address
         &pio0->rxf[cmd_reader.sm],  // Source address
         GC_MC_LATENCY_CYCLES,                    // Number of transfers
+        false                   // Start immediately
+    );
+
+    dma_write_config = dma_channel_get_default_config(DMA_WRITE_CHAN);
+    channel_config_set_read_increment(&dma_write_config, false);
+    channel_config_set_write_increment(&dma_write_config, true); // Changed to false to write to same location
+    channel_config_set_transfer_data_size(&dma_write_config, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_write_config, pio_get_dreq(pio0, cmd_reader.sm, false));
+    dma_channel_configure(
+        DMA_WRITE_CHAN,                 // Channel to be configured
+        &dma_write_config,         // The configuration we just created
+        &_,            // Single byte destination address
+        &pio0->rxf[cmd_reader.sm],  // Source address
+        128,                    // Number of transfers
         false                   // Start immediately
     );
 }
@@ -263,11 +277,9 @@ static void __time_critical_func(gc_mc_read)(void) {
 
 
 static void __time_critical_func(gc_mc_write)(void) {
-    uint8_t offset[4] = {};
     uint8_t data[512] = {};
-    uint16_t i = 0;
+    uint8_t offset[4] = {};
     uint32_t offset_u32 = 0;
-    uint8_t ret = RECEIVE_OK;
     gc_mc_respond(0xFF); // out byte 1
     gc_receiveOrNextCmd(&offset[3]);
     gc_mc_respond(0xFF); // out byte 2
@@ -276,16 +288,19 @@ static void __time_critical_func(gc_mc_write)(void) {
     gc_receiveOrNextCmd(&offset[1]);
     gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[0]);
-    gc_mc_respond(0xFF); // out byte 5
+
+
+    dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, &data[0], &pio0->rxf[cmd_reader.sm], 128, true);
+
+
+    while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
+    DPRINTF("W: %08x / %u\n",offset_u32, 128);
 
-    while (ret != RECEIVE_RESET && i < 512) {
-        ret = gc_receive(&data[i++]);
-    }
-    DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
-    gc_mc_data_interface_write_mc(offset_u32, data, (i-1));
-    sleep_us(2);
+    gc_mc_data_interface_write_mc(offset_u32, data, 128);
+
+    sleep_us(100);
     gpio_put(PIN_GC_INT, 0);
 }
 
