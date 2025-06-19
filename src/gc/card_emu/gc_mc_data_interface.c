@@ -122,15 +122,13 @@ void __time_critical_func(gc_mc_data_interface_erase)(uint32_t page) {
 
         uint8_t erasebuff[GC_PAGE_SIZE] = { 0 };
         memset(erasebuff, 0xFF, GC_PAGE_SIZE);
-        uint32_t page_base = page;
         gc_dirty_lockout_renew();
         gc_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
-            gc_dirty_lockout_renew();
-            psram_write_dma(page_base + (i * GC_PAGE_SIZE), erasebuff, GC_PAGE_SIZE, NULL);
+            psram_write_dma(page + (i * GC_PAGE_SIZE), erasebuff, GC_PAGE_SIZE, NULL);
             psram_wait_for_dma();
-            gc_cardman_mark_segment_available(page_base + (i * GC_PAGE_SIZE));
-            gc_dirty_mark(page_base/GC_PAGE_SIZE + i);
+            gc_cardman_mark_segment_available(page + (i * GC_PAGE_SIZE));
+            gc_dirty_mark(page/GC_PAGE_SIZE + i);
         }
         gc_dirty_unlock();
     }
@@ -179,6 +177,6 @@ bool gc_mc_data_interface_write_occured(void) {
 void __time_critical_func(gc_mc_data_interface_task)(void) {
     write_occured = false;
 
-    gc_dirty_task();
+    //gc_dirty_task();
     busy_cycle = dma_in_progress;
 }

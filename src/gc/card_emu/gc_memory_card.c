@@ -139,12 +139,10 @@ static void __time_critical_func(init_pio)(void) {
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         gc_card_active = false;
-//        drain_fifos();
         reset_pio();
     } else if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
         gc_card_active = true;
         gpio_put(PIN_GC_INT, 1);
-
     }
 }
 
@@ -266,13 +264,12 @@ static void __time_critical_func(gc_mc_read)(void) {
         log(LOG_ERROR, "%s: page %u not available\n", __func__, offset_u32/512U);
         return;
     }
-
     while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
     for (i = 0; i < 0x200; i++) {
         gc_mc_respond(page->data[i]);
     }
 
-    //DPRINTF("R: %08x / %i \n", offset_u32, i);
+    DPRINTF("R: %08x / %i \n", offset_u32, i);
 }
 
 
@@ -289,18 +286,18 @@ static void __time_critical_func(gc_mc_write)(void) {
     gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[0]);
 
+//    for (int i = 0; i < 128; i++) {
+//        gc_receiveOrNextCmd(&data[i]);
+//    }
 
     dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, &data[0], &pio0->rxf[cmd_reader.sm], 128, true);
-
-
-    while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
     DPRINTF("W: %08x / %u\n",offset_u32, 128);
 
+    while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
     gc_mc_data_interface_write_mc(offset_u32, data, 128);
 
-    sleep_us(100);
     gpio_put(PIN_GC_INT, 0);
 }
 
@@ -312,10 +309,8 @@ static void __time_critical_func(mc_erase_sector)(void) {
     gc_receiveOrNextCmd(&page[0]);
 
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
-
     gc_mc_data_interface_erase(offset_u32);
     DPRINTF("E: %08x\n", offset_u32);
-    sleep_us(2);
     gpio_put(PIN_GC_INT, 0);
 }
 
@@ -351,7 +346,7 @@ static void __time_critical_func(mc_set_game_name)(void) {
         }
     }
     name[64] = 0x00;
-    DPRINTF("NAME: %s\n", name);
+    //DPRINTF("NAME: %s\n", name);
 }
 
 static void __time_critical_func(mc_get_game_name)(void) {
@@ -389,15 +384,14 @@ static void __time_critical_func(mc_mce_cmd)(void) {
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
+    uint8_t cmd = 0;
+    uint8_t res = 0;
     card_state = 0x01;
 
     DPRINTF("Latency is %u\n", GC_MC_LATENCY_CYCLES);
     while (1) {
 
-        uint8_t cmd = 0;
-        uint8_t res = 0;
-
-        while (!reset) {};
+        while (!reset) {}; // Wait for reset
 
         reset = 0;
 
@@ -456,6 +450,8 @@ static void __time_critical_func(mc_main_loop)(void) {
                 DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
+
+        gpio_put(PIN_GC_INT, 1);
     }
 }
 
@@ -534,7 +530,7 @@ void gc_memory_card_main(void) {
     log(LOG_TRACE, "Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-    my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
+    //my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
 
     gpio_set_slew_rate(PIN_GC_DO, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(PIN_GC_DO, GPIO_DRIVE_STRENGTH_12MA);

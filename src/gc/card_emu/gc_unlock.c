@@ -175,7 +175,7 @@ void __time_critical_func(mc_unlock)(void) {
         gc_receiveOrNextCmd(&offset[0]);
 
         dma_channel_start(DMA_WAIT_CHAN);
-        DPRINTF("Unlock Msg1: Raw Offset is %02x %02x %02x %02x / %02x\n", offset[3], offset[2], offset[1], offset[0], initial_length_u32);
+        //DPRINTF("Unlock Msg1: Raw Offset is %02x %02x %02x %02x / %02x\n", offset[3], offset[2], offset[1], offset[0], initial_length_u32);
         offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
         mc_unlock_stage_0(offset_u32);
 
@@ -313,10 +313,6 @@ void __time_critical_func(mc_unlock)(void) {
         card_state = 0x41;
         unlock_stage = 0;
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
-        DPRINTF("Unlock Msg4 \n");
-
-        //gc_mc_respond(0xFF);
-
     }
     return;
 
