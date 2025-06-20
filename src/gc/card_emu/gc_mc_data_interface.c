@@ -177,6 +177,6 @@ bool gc_mc_data_interface_write_occured(void) {
 void __time_critical_func(gc_mc_data_interface_task)(void) {
     write_occured = false;
 
-    //gc_dirty_task();
+    gc_dirty_task();
     busy_cycle = dma_in_progress;
 }
