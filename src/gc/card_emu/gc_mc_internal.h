@@ -12,6 +12,7 @@
 #define ERASE_SECTORS 16
 
 #define DMA_WAIT_CHAN 4
+#define DMA_WRITE_CHAN 5
 
 #define GC_MC_LATENCY_CYCLES ( 0x100 )
 #define GC_MC_SECTOR_SIZE    ( 0x2000 )
