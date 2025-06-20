@@ -298,7 +298,11 @@ static void __time_critical_func(gc_mc_write)(void) {
     while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
     gc_mc_data_interface_write_mc(offset_u32, data, 128);
 
-    gpio_put(PIN_GC_INT, 0);
+
+    card_state |= 0x06; // Set card state to 0x06 (write done)
+
+    if (interrupt_enable & 0x01)
+        gpio_put(PIN_GC_INT, 0);
 }
 
 
@@ -311,7 +315,10 @@ static void __time_critical_func(mc_erase_sector)(void) {
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
     gc_mc_data_interface_erase(offset_u32);
     DPRINTF("E: %08x\n", offset_u32);
-    gpio_put(PIN_GC_INT, 0);
+
+    card_state |= 0x06; // Set card state to 0x06 (write done)
+    if (interrupt_enable & 0x01)
+        gpio_put(PIN_GC_INT, 0);
 }
 
 
@@ -384,12 +391,11 @@ static void __time_critical_func(mc_mce_cmd)(void) {
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
-    uint8_t cmd = 0;
-    uint8_t res = 0;
     card_state = 0x01;
 
-    DPRINTF("Latency is %u\n", GC_MC_LATENCY_CYCLES);
     while (1) {
+        uint8_t cmd = 0;
+        uint8_t res = 0;
 
         while (!reset) {}; // Wait for reset
 
@@ -423,7 +429,6 @@ static void __time_critical_func(mc_main_loop)(void) {
             case 0x83:
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
-                //card_state = 0x41;
                 break;
             case 0x85:
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
@@ -432,7 +437,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 gc_mc_respond(0x01); // out byte 4
                 break;
             case 0x89:
-                //card_state = 0x41;
+                card_state &= 0x41;
                 break;
             case 0x8B:
                 mc_mce_cmd();
@@ -450,8 +455,10 @@ static void __time_critical_func(mc_main_loop)(void) {
                 DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
-
-        gpio_put(PIN_GC_INT, 1);
+        if (interrupt_enable & 0x01) {
+            // Clear interrupt
+            gpio_put(PIN_GC_INT, 1);
+        }
     }
 }
 
