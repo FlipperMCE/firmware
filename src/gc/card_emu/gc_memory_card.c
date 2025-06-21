@@ -301,8 +301,10 @@ static void __time_critical_func(gc_mc_write)(void) {
 
     card_state |= 0x06; // Set card state to 0x06 (write done)
 
-    if (interrupt_enable & 0x01)
+    if (interrupt_enable & 0x01) {
+        sleep_us(100); // Wait for 100us to ensure the card is ready
         gpio_put(PIN_GC_INT, 0);
+    }
 }
 
 
@@ -317,8 +319,11 @@ static void __time_critical_func(mc_erase_sector)(void) {
     DPRINTF("E: %08x\n", offset_u32);
 
     card_state |= 0x06; // Set card state to 0x06 (write done)
-    if (interrupt_enable & 0x01)
+
+    if (interrupt_enable & 0x01) {
+        sleep_us(100); // Wait for 100us to ensure the card is ready
         gpio_put(PIN_GC_INT, 0);
+    }
 }
 
 
