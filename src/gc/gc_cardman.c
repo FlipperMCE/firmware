@@ -293,7 +293,7 @@ static void genblock(size_t pos, void *vbuf) {
         buf[24] = 0x00; // lang
         buf[25] = 0x00; // lang
         buf[26] = 0x00; // lang
-        buf[27] = 0x01; // lang
+        buf[27] = card_enc  + 0x01; // lang
         buf[28] = 0x00; // dtv status
         buf[29] = 0x00; // dtv status
         buf[30] = 0x00; // dtv status
@@ -398,6 +398,10 @@ static void gc_cardman_continue(void) {
 
             log(LOG_TRACE, "Writing pos %u\n", pos);
             psram_write_dma(pos, flushbuf, SEGMENT_SIZE, NULL);
+
+            if (segment_idx == 0) {
+                card_enc = flushbuf[37];
+            }
 
             psram_wait_for_dma();
 
@@ -712,6 +716,10 @@ const char *gc_cardman_get_folder_name(void) {
 
 gc_cardman_state_t gc_cardman_get_state(void) {
     return cardman_state;
+}
+
+int gc_cardman_get_card_enc(void) {
+    return card_enc;
 }
 
 void gc_cardman_force_update(void) {

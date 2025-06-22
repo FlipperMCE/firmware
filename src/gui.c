@@ -13,7 +13,9 @@
 #include <src/core/lv_obj_tree.h>
 #include <src/hal/lv_hal_disp.h>
 #include <src/misc/lv_anim.h>
+#include <src/misc/lv_area.h>
 #include <src/misc/lv_style.h>
+#include <src/misc/lv_txt.h>
 #include <src/widgets/lv_label.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -42,7 +44,7 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
+static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
     *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip;
 
 static struct {
@@ -479,6 +481,10 @@ static void create_main_screen(void) {
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
     main_header = ui_header_create(scr_main, "");
     update_main_header();
+
+    scr_main_info_lbl = ui_label_create_at(scr_main, 0, 12, "4 MBit - W");
+    lv_obj_set_style_text_align(scr_main_info_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_align(scr_main_info_lbl, LV_ALIGN_TOP_MID);
 
     ui_label_create_at(scr_main, 0, 24, "Card");
 
@@ -924,6 +930,15 @@ void gui_task(void) {
                 lv_label_set_text(src_main_title_lbl, card_name);
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
+            }
+
+            {
+                char info_text[32];
+                snprintf(info_text, sizeof(info_text), "%d MBit - %c",
+                         settings_get_gc_cardsize(),
+                         gc_cardman_get_card_enc() ? 'J' : 'W');
+
+                lv_label_set_text(scr_main_info_lbl, info_text);
             }
         }
 
