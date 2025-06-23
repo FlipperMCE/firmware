@@ -935,7 +935,7 @@ void gui_task(void) {
             {
                 char info_text[32];
                 snprintf(info_text, sizeof(info_text), "%d MBit - %c",
-                         settings_get_gc_cardsize(),
+                         (gc_cardman_get_card_size() *8) / (1024*1024),
                          gc_cardman_get_card_enc() ? 'J' : 'W');
 
                 lv_label_set_text(scr_main_info_lbl, info_text);
