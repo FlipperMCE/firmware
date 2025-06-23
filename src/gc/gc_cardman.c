@@ -72,7 +72,7 @@ static void update_encoding(void) {
         case GC_CM_STATE_GAMEID: {
             const char *region;
             game_db_get_current_region(&region);
-            if ((region != NULL) && (memcmp(region, "JAP", 3))) {
+            if ((region != NULL) && (memcmp(region, "JPN", 3))) {
                 card_enc = 0;
             } else {
                 card_enc = 1;
@@ -80,7 +80,7 @@ static void update_encoding(void) {
         }
         break;
         case GC_CM_STATE_NAMED:
-            if ((strlen(folder_name) == (MAX_GAME_ID_LENGTH-1)) && (memcmp(&folder_name[12], "JAP", 3) == 0)) {
+            if ((strlen(folder_name) == (MAX_GAME_ID_LENGTH-1)) && (memcmp(&folder_name[12], "JPN", 3) == 0)) {
                 card_enc = 1;
             } else {
                 card_enc = 0;
