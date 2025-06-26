@@ -115,6 +115,7 @@ static void set_default_card() {
 }
 
 static bool try_set_game_id_card() {
+    char full_id[16] = {0};
     if (!settings_get_gc_game_id())
         return false;
 
@@ -126,14 +127,17 @@ static bool try_set_game_id_card() {
     if (!id || !id[0])
         return false;
 
-    DPRINTF("Game ID: %s\n", id);
+    snprintf(full_id, sizeof(full_id), "DL-DOL-%c%c%c%c-%s", id[0], id[1], id[2], id[3], region);
+    DPRINTF("Game ID: %s - full id: %s\n", id, full_id);
+
     card_idx = GC_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = GC_CM_STATE_GAMEID;
-    card_config_get_card_folder(id, folder_name, sizeof(folder_name));
+    card_config_get_card_folder(full_id, folder_name, sizeof(folder_name));
     if (folder_name[0] == 0x00) {
         memset(folder_name, 0x00, sizeof(folder_name));
-        snprintf(folder_name, sizeof(folder_name), "DL-DOL-%c%c%c%c-%s", id[0], id[1], id[2], id[3], region);
+        strlcpy(folder_name, full_id, sizeof(full_id));
+//        snprintf(folder_name, sizeof(folder_name), "DL-DOL-%c%c%c%c-%s", id[0], id[1], id[2], id[3], region);
     }
 
     return true;
