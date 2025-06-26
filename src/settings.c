@@ -39,6 +39,7 @@ typedef struct {
 #define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
 #define SETTINGS_GC_FLAGS_ENC              (0b0000100)  // Card Encoding Default is Japanese
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
+#define SETTINGS_SYS_FLAGS_SHOW_INFO       (0b0000100)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
@@ -79,6 +80,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
     } else if (MATCH("General", "FlippedScreen")
         && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0))) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    } else if (MATCH("General", "ShowInfo")
+        && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0))) {
+        _s->sys_flags ^= SETTINGS_SYS_FLAGS_SHOW_INFO;
     }
     #undef MATCH
     return 1;
@@ -127,6 +131,8 @@ static void settings_serialize(void) {
         int written = snprintf(line_buffer, 256, "[General]\n");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "ShowInfo=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[GC]\n");
         sd_write(fd, line_buffer, written);
@@ -293,6 +299,10 @@ bool settings_get_display_flipped() {
     return (settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY);
 }
 
+bool settings_get_show_info() {
+    return (settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO);
+}
+
 void settings_set_display_timeout(uint8_t display_timeout) {
     settings.display_timeout = display_timeout;
     SETTINGS_UPDATE_FIELD(display_timeout);
@@ -311,5 +321,11 @@ void settings_set_display_vcomh(uint8_t display_vcomh) {
 void settings_set_display_flipped(bool flipped) {
     if (flipped != settings_get_display_flipped())
         settings.sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    SETTINGS_UPDATE_FIELD(sys_flags);
+}
+
+void settings_set_show_info(bool show) {
+    if (show != settings_get_show_info())
+        settings.sys_flags ^= SETTINGS_SYS_FLAGS_SHOW_INFO;
     SETTINGS_UPDATE_FIELD(sys_flags);
 }

@@ -45,7 +45,7 @@ static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
-    *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip;
+    *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip, *lbl_show_info;
 
 static struct {
     uint8_t value;
@@ -143,10 +143,11 @@ static lv_obj_t *ui_label_create_grow_scroll(lv_obj_t *parent, const char *text)
     return label;
 }
 
-static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text) {
+static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text, bool inverted) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_obj_set_align(lbl, LV_ALIGN_TOP_MID);
-    lv_obj_add_style(lbl, &style_inv, 0);
+    if (inverted)
+        lv_obj_add_style(lbl, &style_inv, 0);
     lv_obj_set_width(lbl, DISPLAY_WIDTH);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(lbl, text);
@@ -420,6 +421,14 @@ static void evt_screen_flip(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_show_info(lv_event_t *event) {
+    bool current = settings_get_show_info();
+    settings_set_show_info(!current);
+    lv_label_set_text(lbl_show_info, !current ? "Yes" : "No");
+    refresh_gui = true;
+    lv_event_stop_bubbling(event);
+}
+
 
 static void evt_gc_autoboot(lv_event_t *event) {
     bool current = settings_get_gc_autoboot();
@@ -479,10 +488,10 @@ static void create_main_screen(void) {
     /* Main screen listing current memcard, status, etc */
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-    main_header = ui_header_create(scr_main, "");
+    main_header = ui_header_create(scr_main, "", true);
     update_main_header();
 
-    scr_main_info_lbl = ui_label_create_at(scr_main, 0, 12, "4 MBit - W");
+    scr_main_info_lbl = ui_label_create_at(scr_main, 0, 12, "");
     lv_obj_set_style_text_align(scr_main_info_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_align(scr_main_info_lbl, LV_ALIGN_TOP_MID);
 
@@ -551,7 +560,7 @@ static void create_main_screen(void) {
 static void create_cardswitch_screen(void) {
     scr_card_switch = ui_scr_create();
 
-    ui_header_create(scr_card_switch, "Loading card");
+    ui_header_create(scr_card_switch, "Loading card", true);
 
     static lv_style_t style_progress;
     lv_style_init(&style_progress);
@@ -640,7 +649,8 @@ static void create_menu_screen(void) {
     }
 
     /* display config */
-    lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
+    lv_obj_t *display_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(display_page, "Display", false);
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
@@ -664,12 +674,17 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Flip");
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Show Info");
+        lbl_show_info = ui_label_create(cont, settings_get_show_info() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_show_info, LV_EVENT_CLICKED, NULL);
     }
 
     /* gc */
-    lv_obj_t *gc_page = ui_menu_subpage_create(menu, "Card Settings");
+    lv_obj_t *gc_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(gc_page, "Card Settings", false);
     {
-
         /* cardsize submenu */
         lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
@@ -716,7 +731,8 @@ static void create_menu_screen(void) {
     }
 
     /* Info submenu */
-    lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
+    lv_obj_t *info_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(info_page, "Info", false);
     {
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Version");
@@ -737,6 +753,7 @@ static void create_menu_screen(void) {
 
     /* Main menu */
     main_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(main_page, "Main Menu", false);
     {
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Card Settings");
@@ -931,13 +948,14 @@ void gui_task(void) {
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
-
             {
-                char info_text[32];
-                snprintf(info_text, sizeof(info_text), "%d MBit - %c",
-                         (gc_cardman_get_card_size() *8) / (1024*1024),
-                         gc_cardman_get_card_enc() ? 'J' : 'W');
+                char info_text[32] = "";
+                if (settings_get_show_info()) {
+                    snprintf(info_text, sizeof(info_text), "%d MBit - %c",
+                             (gc_cardman_get_card_size() *8) / (1024*1024),
+                             gc_cardman_get_card_enc() ? 'J' : 'W');
 
+                }
                 lv_label_set_text(scr_main_info_lbl, info_text);
             }
         }
