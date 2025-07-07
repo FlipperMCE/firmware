@@ -35,6 +35,7 @@ add_subdirectory(src/gc)
 
 add_subdirectory(src/psram)
 add_subdirectory(ext/)
+add_subdirectory(src/sdcard)
 add_subdirectory(database)
 
 # FlipperMCE Main Lib
@@ -60,7 +61,8 @@ PRIVATE
     flippermce_version
     flippermce_common
     gc_card
-    sd_fat
+    #sd_fat
+    sd_new
 )
 
 
@@ -95,7 +97,8 @@ target_include_directories(flippermce_common
 
 target_link_libraries(flippermce_common
                     PRIVATE
-                        sd_fat
+                        sd_new
+                        #sd_fat
                         pico_platform_headers
                         hardware_flash
                         hardware_gpio

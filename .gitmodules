@@ -7,3 +7,6 @@
 [submodule "ext/ESP8266SdFat"]
 	path = ext/ESP8266SdFat
 	url = https://github.com/sd2psx/ESP8266SdFat.git
+[submodule "ext/sdcard"]
+	path = ext/sdcard
+	url = https://github.com/carlk3/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico.git

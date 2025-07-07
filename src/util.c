@@ -41,7 +41,7 @@ bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_n
     int dir_fd, it_fd = -1;
     char filename[MAX_GAME_ID_LENGTH + 1] = {}; // +1 byte to be able to tell whether the name was truncated or not
 
-    dir_fd = sd_open(cards_dir, O_RDONLY);
+    dir_fd = sd_openDir(cards_dir);
     if (dir_fd < 0)
         return false;
 
@@ -76,7 +76,7 @@ bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_n
     if (it_fd != -1)
         sd_close(it_fd);
 
-    sd_close(dir_fd);
+    sd_closeDir(dir_fd);
 
     return ret;
 }

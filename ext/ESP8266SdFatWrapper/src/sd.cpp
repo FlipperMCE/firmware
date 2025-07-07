@@ -73,6 +73,10 @@ extern "C" int sd_open(const char *path, int oflag) {
     return fd;
 }
 
+extern "C" int sd_openDir(const char *path) {
+    return sd_open(path, O_RDONLY | O_DIRECTORY);
+}
+
 #define CHECK_FD(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return -1;
 #define CHECK_FD_VOID(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return;
 
@@ -80,6 +84,10 @@ extern "C" int sd_close(int fd) {
     CHECK_FD(fd);
 
     return files[fd].close() != true;
+}
+
+extern "C" int sd_closeDir(int dir_fd) {
+    return sd_close(dir_fd);
 }
 
 extern "C" void sd_flush(int fd) {
