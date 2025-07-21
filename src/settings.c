@@ -210,13 +210,13 @@ int settings_get_gc_card(void) {
 }
 
 int settings_get_gc_channel(void) {
-    if (settings.gc_channel < CHAN_MIN || settings.gc_channel > CHAN_MAX)
+    if (settings.gc_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.gc_channel;
 }
 
 int settings_get_gc_boot_channel(void) {
-    if (settings.gc_boot_channel < CHAN_MIN || settings.gc_boot_channel > CHAN_MAX)
+    if (settings.gc_boot_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.gc_boot_channel;
 }

@@ -27,7 +27,6 @@ void settings_set_gc_encoding(bool enabled);
 #define IDX_MIN 1
 #define IDX_BOOT 0
 #define CHAN_MIN 1
-#define CHAN_MAX 8
 
 uint8_t settings_get_display_timeout(void);
 uint8_t settings_get_display_contrast(void);
