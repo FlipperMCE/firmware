@@ -58,6 +58,7 @@ extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
     if (!initialized) {
         sd_init();
+    }
 
     if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
         return -1;
