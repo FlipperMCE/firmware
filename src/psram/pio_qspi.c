@@ -3,12 +3,19 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "pico/time.h"
 #include "pio_qspi.h"
 #include "config.h"
 #include "hardware/dma.h"
+
+
+int PIO_SPI_DMA_TX_CMD_CHAN = -1;
+int PIO_SPI_DMA_RX_CMD_CHAN = -1;
+int PIO_SPI_DMA_TX_DATA_CHAN = -1;
+int PIO_SPI_DMA_RX_DATA_CHAN = -1;
 
 #define QSPI_DAT_MASK ((1 << (PSRAM_DAT+0)) | (1 << (PSRAM_DAT+1)) | (1 << (PSRAM_DAT+2)) | (1 << (PSRAM_DAT+3)))
 #define WAIT_CYCLES (4)
@@ -181,7 +188,11 @@ bool __time_critical_func(pio_qspi_dma_active)() {
 }
 
 void pio_qspi_dma_init(const pio_spi_inst_t *spi) {
-    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+    //dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+    PIO_SPI_DMA_TX_DATA_CHAN = dma_claim_unused_channel(true);
+    PIO_SPI_DMA_RX_CMD_CHAN = dma_claim_unused_channel(true);
+    PIO_SPI_DMA_TX_CMD_CHAN = dma_claim_unused_channel(true);
+    PIO_SPI_DMA_RX_DATA_CHAN = dma_claim_unused_channel(true);
 
     dma_tx_cmd_conf = dma_channel_get_default_config(PIO_SPI_DMA_TX_CMD_CHAN);
     channel_config_set_transfer_data_size(&dma_tx_cmd_conf, DMA_SIZE_8);
