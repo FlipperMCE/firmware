@@ -41,10 +41,10 @@
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
+static lv_obj_t *scr_main_info_lbl_l, *scr_main_info_lbl_r, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
     *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip, *lbl_show_info;
 
 static struct {
@@ -74,7 +74,6 @@ static int have_oled;
 static bool waiting_card;
 static int current_progress;
 static bool refresh_gui;
-static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
@@ -452,7 +451,7 @@ static void evt_gc_encoding(lv_event_t *event) {
 }
 
 static void evt_set_gc_cardsize(lv_event_t *event) {
-    uint8_t cardsize = (intptr_t)event->user_data;
+    uint8_t cardsize = (uint8_t)event->user_data;
     settings_set_gc_cardsize(cardsize);
 
     char text[12] = {};
@@ -463,20 +462,20 @@ static void evt_set_gc_cardsize(lv_event_t *event) {
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
-    uint8_t display_timeout = (intptr_t)event->user_data;
+    uint8_t display_timeout = (uint8_t)event->user_data;
     settings_set_display_timeout(display_timeout);
     ui_set_display_timeout(display_timeout);
 }
 
 static void evt_set_display_contrast(lv_event_t *event) {
-    uint8_t display_contrast = (intptr_t)event->user_data;
+    uint8_t display_contrast = (uint8_t)event->user_data;
     settings_set_display_contrast(display_contrast);
     oled_set_contrast(display_contrast);
     ui_set_display_contrast(display_contrast);
 }
 
 static void evt_set_display_vcomh(lv_event_t *event) {
-    uint8_t display_vcomh = (intptr_t)event->user_data;
+    uint8_t display_vcomh = (uint8_t)event->user_data;
     settings_set_display_vcomh(display_vcomh);
     oled_set_vcomh(display_vcomh);
     ui_set_display_vcomh(display_vcomh);
@@ -491,9 +490,15 @@ static void create_main_screen(void) {
     main_header = ui_header_create(scr_main, "", true);
     update_main_header();
 
-    scr_main_info_lbl = ui_label_create_at(scr_main, 0, 12, "");
-    lv_obj_set_style_text_align(scr_main_info_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_align(scr_main_info_lbl, LV_ALIGN_TOP_MID);
+    scr_main_info_lbl_l = ui_label_create_at(scr_main, 0, 10, " 4 ");
+    lv_obj_set_style_text_align(scr_main_info_lbl_l, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_add_style(scr_main_info_lbl_l, &style_inv, 0);
+    lv_obj_set_align(scr_main_info_lbl_l, LV_ALIGN_TOP_LEFT);
+
+    scr_main_info_lbl_r = ui_label_create_at(scr_main, 0, 10, " W ");
+    lv_obj_set_style_text_align(scr_main_info_lbl_r, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_obj_add_style(scr_main_info_lbl_r, &style_inv, 0);
+    lv_obj_set_align(scr_main_info_lbl_r, LV_ALIGN_TOP_RIGHT);
 
     ui_label_create_at(scr_main, 0, 24, "Card");
 
@@ -774,6 +779,99 @@ static void create_menu_screen(void) {
     ui_menu_set_page(menu, main_page);
 }
 
+
+
+static void create_splash(void) {
+    // Create the splash screen object
+    scr_splash = ui_scr_create();
+
+    // Statically define a 1bpp all-white image in flash (const)
+    static const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint8_t FlipperMCE_map[] = {
+        0x00, 0x00, 0x00, 0xff, 	/*Color of index 0*/
+      0xff, 0xff, 0xff, 0xff, 	/*Color of index 1*/
+
+      0x00, 0x00, 0x01, 0xff, 0xf8, 0x00, 0x00,
+      0x00, 0x00, 0x07, 0xff, 0xfe, 0x00, 0x00,
+      0x00, 0x00, 0x1f, 0xff, 0xff, 0x80, 0x00,
+      0x00, 0xfe, 0x7f, 0xff, 0xff, 0xc0, 0x00,
+      0x0f, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00,
+      0x3f, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x00,
+      0x7f, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x00,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x00,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0x00,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf8,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+      0x3f, 0xff, 0xff, 0xff, 0x3f, 0xff, 0xfc,
+      0x1f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+      0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+      0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+      0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+      0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xbc,
+      0x01, 0xff, 0xff, 0xff, 0x80, 0x60, 0x78,
+      0x03, 0xff, 0xff, 0xfe, 0x00, 0x01, 0xf8,
+      0x03, 0xff, 0xff, 0xf8, 0x00, 0x1f, 0xe0,
+      0x07, 0xff, 0xff, 0xf0, 0x01, 0xff, 0xc0,
+      0x07, 0xff, 0xff, 0xe0, 0x0f, 0xff, 0x00,
+      0x07, 0xff, 0xff, 0xc0, 0x3f, 0xf0, 0x00,
+      0x0f, 0xff, 0xff, 0x80, 0x7f, 0x00, 0x00,
+      0x0f, 0xff, 0xff, 0x80, 0xff, 0x00, 0x00,
+      0x0f, 0xff, 0xff, 0xff, 0xff, 0xfe, 0x00,
+      0x0f, 0xef, 0xff, 0xff, 0xff, 0xff, 0xc0,
+      0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0,
+      0x0f, 0xff, 0xfe, 0x00, 0x03, 0xff, 0xc0,
+      0x1f, 0xff, 0xfe, 0x00, 0x00, 0x01, 0xc0,
+      0x1f, 0xff, 0xfc, 0x00, 0x00, 0x01, 0xe0,
+      0x1f, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xe0,
+      0x1f, 0xbf, 0xe3, 0xff, 0xff, 0xf9, 0xe0,
+      0x1f, 0xff, 0xe7, 0xff, 0xff, 0xfd, 0xe0,
+      0x1f, 0xff, 0xe7, 0x00, 0x00, 0x1d, 0xe0,
+      0x0f, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x0f, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x0f, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x0f, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x0f, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x0f, 0xfd, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x07, 0xfd, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x07, 0xfd, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x07, 0xfd, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x03, 0xfd, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x03, 0xff, 0xe6, 0x00, 0x00, 0x0d, 0xe0,
+      0x03, 0xff, 0xe7, 0xff, 0xff, 0xfd, 0xe0,
+      0x03, 0xff, 0xe7, 0xff, 0xff, 0xf9, 0xe0,
+      0x07, 0xff, 0xe1, 0xff, 0xff, 0xe1, 0xe0,
+      0x0f, 0xff, 0xe0, 0x00, 0x00, 0x01, 0xe0,
+      0x0f, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xe0,
+      0x1f, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xc0,
+      0x1f, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xc0,
+      0x3f, 0xff, 0xe0, 0x00, 0x00, 0x01, 0xe0,
+      0x3f, 0xf7, 0xf0, 0x00, 0x00, 0x01, 0xc0,
+      0x3f, 0xe1, 0xf0, 0x0f, 0xfc, 0x01, 0xc0,
+      0x3f, 0xc1, 0xf0, 0x1f, 0xff, 0x01, 0xc0,
+      0x3f, 0x81, 0xf0, 0x3c, 0x0f, 0x81, 0xe0,
+      0x3f, 0x01, 0xe0, 0x78, 0x03, 0xc1, 0xe0,
+      0x3f, 0x01, 0xe0, 0xe0, 0x01, 0xc1, 0xe0,
+      0x3e, 0x01, 0xf0, 0xe0, 0x01, 0xc1, 0xe0,
+      0x1e, 0x01, 0xff, 0xff, 0xff, 0xff, 0xe0,
+      0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0xc0,
+      0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x80,
+};
+    // Create an lv_img_dsc_t for the buffer
+    static const lv_img_dsc_t splash_img_dsc = {
+        .header.always_zero = 0,
+        .header.w = 54,
+        .header.h = 64,
+        .data_size =  sizeof(FlipperMCE_map),
+        .header.cf = LV_IMG_CF_INDEXED_1BIT,
+        .data = FlipperMCE_map,
+    };
+
+    // Add the image to the splash screen
+    lv_obj_t *img = lv_img_create(scr_splash);
+    lv_img_set_src(img, &splash_img_dsc);
+
+    lv_obj_center(img);
+}
+
 static void create_ui(void) {
     lv_style_init(&style_inv);
     lv_style_set_bg_opa(&style_inv, LV_OPA_COVER);
@@ -788,6 +886,7 @@ static void create_ui(void) {
     create_main_screen();
     create_menu_screen();
     create_cardswitch_screen();
+    create_splash();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -863,7 +962,6 @@ void gui_init(void) {
         create_ui();
 
         refresh_gui = false;
-        installing_exploit = false;
         waiting_card = false;
     }
 }
@@ -894,7 +992,12 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (waiting_card) {
+    if (time_us_64() < 2 * 1000 * 1000) {
+        // Wait for 2 seconds before showing the main screen
+        if (lv_scr_act() != scr_splash) {
+            UI_GOTO_SCREEN(scr_splash);
+        }
+    } else if (waiting_card) {
         update_bar();
 
         oled_update_last_action_time();
@@ -904,6 +1007,10 @@ void gui_task(void) {
         static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
+
+        if (lv_scr_act() != scr_main) {
+            UI_GOTO_SCREEN(scr_main);
+        }
 
         lv_label_set_text(main_header, "GC Memory Card");
 
@@ -949,14 +1056,17 @@ void gui_task(void) {
                 lv_label_set_text(src_main_title_lbl, "");
             }
             {
-                char info_text[32] = "";
+                char l_text[5] = "";
+                char r_text[5] = "";
                 if (settings_get_show_info()) {
-                    snprintf(info_text, sizeof(info_text), "%d MBit - %c",
-                             (gc_cardman_get_card_size() *8) / (1024*1024),
-                             gc_cardman_get_card_enc() ? 'J' : 'W');
+                    snprintf(l_text, sizeof(l_text), " %u ",
+                             (gc_cardman_get_card_size() * 8) / (1024*1024));
+                    snprintf(r_text, sizeof(r_text), " %c ", gc_cardman_get_card_enc() ? 'J' : 'W');
+                } else {
 
                 }
-                lv_label_set_text(scr_main_info_lbl, info_text);
+                lv_label_set_text(scr_main_info_lbl_l, l_text);
+                lv_label_set_text(scr_main_info_lbl_r, r_text);
             }
         }
 
