@@ -155,7 +155,6 @@ bool splash_load_sd(void) {
         int fd = sd_open("splash.bin", O_RDONLY);
         sd_read(fd, (void *)splash_img, sizeof(splash_img));
         sd_close(fd);
-        splash_install();
         sd_remove("splash.bin");
         DPRINTF("Splash image loaded from SD card.\n");
         ret = true;
