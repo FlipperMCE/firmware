@@ -4,8 +4,8 @@
 #define FLASH_OFF_APP (0x0)
 
 /* 4k before eeprom starts */
-#ifndef FLASH_OFF_CIV
-    #define FLASH_OFF_CIV (0x7fb000)
+#ifndef FLASH_OFF_SPLASH
+    #define FLASH_OFF_SPLASH (0x7fb000)
 #endif
 
 /* 16k space before 8MB boundary */
