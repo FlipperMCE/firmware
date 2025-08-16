@@ -423,13 +423,14 @@ static void evt_screen_flip(lv_event_t *event) {
     lv_label_set_text(lbl_scrn_flip, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
-
+/**
 static void evt_do_splash_install(lv_event_t *event) {
     if (splash_load_sd()) {
         splash_install();
     }
     lv_event_stop_bubbling(event);
 }
+*/
 
 static void evt_show_info(lv_event_t *event) {
     bool current = settings_get_show_info();
@@ -635,7 +636,7 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
-
+/**
     lv_obj_t *splash_page = ui_menu_subpage_create(menu, NULL);
     ui_header_create(splash_page, "Deploy Splash", false);
     {
@@ -647,7 +648,7 @@ static void create_menu_screen(void) {
         ui_label_create(cont, "Back");
         lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
     }
-
+*/
     /* display / vcomh submenu */
     lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
@@ -696,13 +697,13 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Flip");
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
-
+/**
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Deploy splash");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, splash_page);
         lv_obj_add_event_cb(cont, evt_do_splash_install, LV_EVENT_CLICKED, NULL);
-
+*/
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Show Info");
         lbl_show_info = ui_label_create(cont, settings_get_show_info() ? " Yes" : " No");
