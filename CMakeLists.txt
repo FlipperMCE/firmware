@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.19)
 # Pico SDK
 
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
@@ -10,6 +10,8 @@ pico_sdk_init()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
+add_compile_options(-Wall -Wextra -Wconversion)
 
 option(FLIPPERMCE_WITH_GUI   "Build FlipperMCE with GUI support" ON)
 option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
@@ -109,7 +111,7 @@ target_compile_options(flippermce_common
                             -fno-jump-tables)
 
 target_compile_definitions(flippermce_common PUBLIC
-                            USE_SPI_ARRAY_TRANSFER=1
+                            USE_SPI_ARRAY_TRANSFER=3
                             -DFEAT_PS2_CARDSIZE=1
                             -DFEAT_PS2_MMCE=1)
 
