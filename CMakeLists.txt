@@ -121,7 +121,8 @@ if (FLIPPERMCE_WITH_GUI)
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c)
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/splash.c)
     target_link_libraries(flippermce_common
                 PUBLIC
                     lvgl::lvgl

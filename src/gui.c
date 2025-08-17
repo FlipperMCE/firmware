@@ -32,16 +32,20 @@
 #include "ui_theme_mono.h"
 #include "version/version.h"
 
+#include "splash.h"
+
 #if LOG_LEVEL_GUI == 0
     #define log(x...)
 #else
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
+static uint64_t time_start;
+
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot, *lbl_gc_encoding,
@@ -74,7 +78,6 @@ static int have_oled;
 static bool waiting_card;
 static int current_progress;
 static bool refresh_gui;
-static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
@@ -406,12 +409,12 @@ void evt_menu_page(lv_event_t *event) {
 static void update_main_header(void) {
     lv_label_set_text(main_header, "GC Memory Card");
 }
-/*
+
 static void evt_go_back(lv_event_t *event) {
     ui_menu_go_back(menu);
     lv_event_stop_bubbling(event);
 }
-*/
+
 static void evt_screen_flip(lv_event_t *event) {
     bool current = settings_get_display_flipped();
     settings_set_display_flipped(!current);
@@ -420,6 +423,14 @@ static void evt_screen_flip(lv_event_t *event) {
     lv_label_set_text(lbl_scrn_flip, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
+/**
+static void evt_do_splash_install(lv_event_t *event) {
+    if (splash_load_sd()) {
+        splash_install();
+    }
+    lv_event_stop_bubbling(event);
+}
+*/
 
 static void evt_show_info(lv_event_t *event) {
     bool current = settings_get_show_info();
@@ -452,7 +463,7 @@ static void evt_gc_encoding(lv_event_t *event) {
 }
 
 static void evt_set_gc_cardsize(lv_event_t *event) {
-    uint8_t cardsize = (intptr_t)event->user_data;
+    uint8_t cardsize = (uint8_t)event->user_data;
     settings_set_gc_cardsize(cardsize);
 
     char text[12] = {};
@@ -463,20 +474,20 @@ static void evt_set_gc_cardsize(lv_event_t *event) {
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
-    uint8_t display_timeout = (intptr_t)event->user_data;
+    uint8_t display_timeout = (uint8_t)event->user_data;
     settings_set_display_timeout(display_timeout);
     ui_set_display_timeout(display_timeout);
 }
 
 static void evt_set_display_contrast(lv_event_t *event) {
-    uint8_t display_contrast = (intptr_t)event->user_data;
+    uint8_t display_contrast = (uint8_t)event->user_data;
     settings_set_display_contrast(display_contrast);
     oled_set_contrast(display_contrast);
     ui_set_display_contrast(display_contrast);
 }
 
 static void evt_set_display_vcomh(lv_event_t *event) {
-    uint8_t display_vcomh = (intptr_t)event->user_data;
+    uint8_t display_vcomh = (uint8_t)event->user_data;
     settings_set_display_vcomh(display_vcomh);
     oled_set_vcomh(display_vcomh);
     ui_set_display_vcomh(display_vcomh);
@@ -625,7 +636,19 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
+/**
+    lv_obj_t *splash_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(splash_page, "Deploy Splash", false);
+    {
+        cont = ui_menu_cont_create(splash_page);
+        ui_label_create(cont, "Done!");
+        cont = ui_menu_cont_create(splash_page);
 
+        cont = ui_menu_cont_create_nav(splash_page);
+        ui_label_create(cont, "Back");
+        lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
+    }
+*/
     /* display / vcomh submenu */
     lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
@@ -674,7 +697,13 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Flip");
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
-
+/**
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Deploy splash");
+        ui_label_create(cont, ">");
+        ui_menu_set_load_page_event(menu, cont, splash_page);
+        lv_obj_add_event_cb(cont, evt_do_splash_install, LV_EVENT_CLICKED, NULL);
+*/
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Show Info");
         lbl_show_info = ui_label_create(cont, settings_get_show_info() ? " Yes" : " No");
@@ -774,6 +803,29 @@ static void create_menu_screen(void) {
     ui_menu_set_page(menu, main_page);
 }
 
+
+
+static void create_splash(void) {
+    // Create the splash screen object
+    scr_splash = ui_scr_create();
+
+    // Create an lv_img_dsc_t for the buffer
+    static const lv_img_dsc_t splash_img_dsc = {
+        .header.always_zero = 0,
+        .header.w = 128,
+        .header.h = 64,
+        .data_size =  sizeof(splash_img),
+        .header.cf = LV_IMG_CF_INDEXED_1BIT,
+        .data = splash_img,
+    };
+
+    // Add the image to the splash screen
+    lv_obj_t *img = lv_img_create(scr_splash);
+    lv_img_set_src(img, &splash_img_dsc);
+
+    lv_obj_center(img);
+}
+
 static void create_ui(void) {
     lv_style_init(&style_inv);
     lv_style_set_bg_opa(&style_inv, LV_OPA_COVER);
@@ -788,6 +840,7 @@ static void create_ui(void) {
     create_main_screen();
     create_menu_screen();
     create_cardswitch_screen();
+    create_splash();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -861,9 +914,10 @@ void gui_init(void) {
         lv_disp_set_theme(disp, th);
 
         create_ui();
+        splash_init();
+        time_start = time_us_64();
 
         refresh_gui = false;
-        installing_exploit = false;
         waiting_card = false;
     }
 }
@@ -894,7 +948,12 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (waiting_card) {
+    if (time_us_64() < time_start + 2 * 1000 * 1000) {
+        // Wait for 2 seconds before showing the main screen
+        if (lv_scr_act() != scr_splash) {
+            UI_GOTO_SCREEN(scr_splash);
+        }
+    } else if (waiting_card) {
         update_bar();
 
         oled_update_last_action_time();
@@ -904,6 +963,10 @@ void gui_task(void) {
         static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
+
+        if (lv_scr_act() == scr_splash) {
+            UI_GOTO_SCREEN(scr_main);
+        }
 
         lv_label_set_text(main_header, "GC Memory Card");
 
@@ -954,9 +1017,11 @@ void gui_task(void) {
                     snprintf(info_text, sizeof(info_text), "%d MBit - %c",
                              (gc_cardman_get_card_size() *8) / (1024*1024),
                              gc_cardman_get_card_enc() ? 'J' : 'W');
+                } else {
 
                 }
                 lv_label_set_text(scr_main_info_lbl, info_text);
+
             }
         }
 
