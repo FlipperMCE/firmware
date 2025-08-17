@@ -24,9 +24,9 @@ hwvar:
             long: FlipperMCE for Gamecube
             settings:
                 VARIANT: FlipperMCE
-        flippermce_alpha1:
-            short: FlipperMCE Alpha1
-            long: FlipperMCE for Gamecube Alpha1
+        flippermce_bf_proto:
+            short: FlipperMCE BF Prototype
+            long: FlipperMCE BF Prototype
             settings:
-                VARIANT: FlipperMCE_a1
+                VARIANT: FlipperMCE_bf_proto
 
