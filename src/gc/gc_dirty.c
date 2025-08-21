@@ -128,13 +128,14 @@ void gc_dirty_task(void) {
             gc_dirty_unlock();
         }
     }
-    /* to make sure writes hit the storage medium */
-    gc_cardman_flush();
 
     uint64_t end = time_us_64();
 
-    if (hit)
+    if (hit) {
+        /* to make sure writes hit the storage medium */
+        gc_cardman_flush();
         DPRINTF("remain to flush - %d - this one flushed %d and took %d ms\n", num_after, hit, (int)((end - start) / 1000));
+    }
 
     if (num_after || !gc_dirty_lockout_expired())
         gc_dirty_activity = 1;

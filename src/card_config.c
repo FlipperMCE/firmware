@@ -59,7 +59,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
             strcpy(ctx->channel_name, value);
         }
     } else if (MATCH("Settings", "CardSize")) {
-        int size = atoi(value);
+        uint8_t size = (uint8_t)atoi(value);
         switch (size) {
             case 4:
             case 8:
@@ -72,7 +72,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
                 break;
         }
     } else if (MATCH("Settings", "MaxChannels")) {
-        int max_channels = atoi(value);
+        uint8_t max_channels = (uint8_t)atoi(value);
         if (max_channels > 0 && max_channels <= UINT8_MAX) {
             ctx->max_channels = max_channels;
         }

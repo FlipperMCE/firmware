@@ -36,7 +36,7 @@
 #define CARD_HOME_GC        "MemoryCards/GC"
 #define CARD_HOME_LENGTH    (17)
 
-static int segment_count = -1;
+static int32_t segment_count = -1;
 
 
 #define SEgment_COUNT_4MB (8*1024*1024 / SEGMENT_SIZE)
@@ -45,7 +45,7 @@ uint8_t gc_available_segments[SEgment_COUNT_4MB / 8];  // bitmap
 static uint8_t flushbuf[SEGMENT_SIZE];
 int gc_cardman_fd = -1;
 
-static int current_read_segment = 0, priority_segment = -1;
+static int32_t current_read_segment = 0, priority_segment = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
@@ -216,16 +216,16 @@ int gc_cardman_write_page(int addr, void *buf128) {
     return 0;
 }
 
-bool gc_cardman_is_segment_available(int segment) {
-    return gc_available_segments[segment / 8] & (1 << (segment % 8));
+bool gc_cardman_is_segment_available(uint32_t segment) {
+    return gc_available_segments[segment / 8] & (1U << (segment % 8));
 }
 
-void gc_cardman_mark_segment_available(int segment) {
-    gc_available_segments[segment / 8] |= (1 << (segment % 8));
+void gc_cardman_mark_segment_available(uint32_t segment) {
+    gc_available_segments[segment / 8] |= (uint8_t)(1U << (segment % 8U));
 }
 
-void gc_cardman_set_priority_segment(int segment) {
-    priority_segment = segment;
+void gc_cardman_set_priority_segment(uint32_t segment) {
+    priority_segment = (int32_t)segment;
 }
 
 void gc_cardman_flush(void) {
@@ -304,8 +304,8 @@ static void genblock(size_t pos, void *vbuf) {
         buf[31] = 0x00; // dtv status
         buf[32] = 0x00; // device id
         buf[33] = 0x00; // device id
-        buf[34] = GC_CARDSIZE >> 8; // size msb
-        buf[35] = GC_CARDSIZE & 0xFF; // size lsb
+        buf[34] = (uint8_t)(GC_CARDSIZE >> 8); // size msb
+        buf[35] = (uint8_t)(GC_CARDSIZE & 0xFF); // size lsb
         buf[36] = 0x00; // encoding
         buf[37] = card_enc; // encoding
         buf[0x200-0x6] = 0x00; // updated
@@ -328,15 +328,15 @@ static void genblock(size_t pos, void *vbuf) {
         memset(buf, 0x00, 512);
         buf[4] = 0x00;  // updated msb
         buf[5] = (pos == GC_POS_FAT_1) ? 0 : 1;  // updated lsb
-        buf[6] = GC_FREEBLOCKS >> 8;  // freeblocks msb
-        buf[7] = GC_FREEBLOCKS & 0xFF;  // freeblocks lsb
+        buf[6] = (uint8_t)(GC_FREEBLOCKS >> 8);  // freeblocks msb
+        buf[7] = (uint8_t)(GC_FREEBLOCKS & 0xFF);  // freeblocks lsb
         buf[8] = 0x00;  // lastalloc msb
         buf[9] = 0x04;  // lastalloc lsb
         checksum(&buf[4], 508, (uint16_t*)&buf[0], (uint16_t*)&buf[2]);
         uint16_t cs2 = swap16(*(uint16_t*)&buf[2]);
         cs2 -= 0xF00;
-        buf[2] = cs2 >> 8; // checksum msb
-        buf[3] = cs2 & 0xFF; // checksum lsb
+        buf[2] = (uint8_t)(cs2 >> 8); // checksum msb
+        buf[3] = (uint8_t)(cs2 & 0xFF); // checksum lsb
         return;
     } else if (pos > GC_POS_FAT_1 && pos < GC_POS_FAT_2) {
         uint8_t *buf = vbuf;
@@ -355,14 +355,14 @@ static void genblock(size_t pos, void *vbuf) {
 
 static int next_segment_to_load() {
     if (priority_segment != -1) {
-        if (gc_cardman_is_segment_available(priority_segment))
+        if (gc_cardman_is_segment_available((uint32_t)priority_segment))
             priority_segment = -1;
         else
             return priority_segment;
     }
 
     while (current_read_segment < segment_count) {
-        if (!gc_cardman_is_segment_available(current_read_segment))
+        if (!gc_cardman_is_segment_available((uint32_t)current_read_segment))
             return current_read_segment++;
         else
             current_read_segment++;
@@ -380,21 +380,21 @@ static void gc_cardman_continue(void) {
             log(LOG_TRACE, "Slice!\n");
 
             gc_dirty_lock();
-            int segment_idx = next_segment_to_load();
+            int32_t segment_idx = next_segment_to_load();
             if (segment_idx == -1) {
                 gc_dirty_unlock();
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
 
-                log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
-                    1000000.0 * card_size / (end - cardprog_start) / 1024);
+                log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (double)(end - cardprog_start) / 1e6,
+                    1000000.0 * card_size / (double)(end - cardprog_start) / 1024);
                 if (cardman_cb)
                     cardman_cb(100, true);
                 break;
             }
 
-            size_t pos = segment_idx * SEGMENT_SIZE;
-            if (sd_seek(gc_cardman_fd, pos, 0) != 0)
+            uint32_t pos = (uint32_t)segment_idx * SEGMENT_SIZE;
+            if (sd_seek(gc_cardman_fd, (int32_t)pos, 0) != 0)
                 fatal("cannot read memcard\nseek");
 
             if (sd_read(gc_cardman_fd, flushbuf, SEGMENT_SIZE) != SEGMENT_SIZE)
@@ -409,13 +409,13 @@ static void gc_cardman_continue(void) {
 
             psram_wait_for_dma();
 
-            gc_cardman_mark_segment_available(segment_idx);
+            gc_cardman_mark_segment_available((uint32_t)segment_idx);
             gc_dirty_unlock();
 
-            cardprog_pos = cardman_segments_done * SEGMENT_SIZE;
+            cardprog_pos = (uint32_t)cardman_segments_done * SEGMENT_SIZE;
 
             if (cardman_cb)
-                cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, false);
+                cardman_cb((int)(100 * (uint64_t)cardprog_pos / (uint64_t)card_size), false);
 
             cardman_segments_done++;
         }
@@ -423,9 +423,9 @@ static void gc_cardman_continue(void) {
 
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        sd_seek(gc_cardman_fd, cardprog_pos * SEGMENT_SIZE, SEEK_SET);
         while ((time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
-            cardprog_pos = cardman_segments_done * SEGMENT_SIZE;
+            cardprog_pos = (uint32_t)cardman_segments_done * SEGMENT_SIZE;
+            sd_seek(gc_cardman_fd, (int32_t)(cardprog_pos * SEGMENT_SIZE), SEEK_SET);
             if (cardprog_pos >= card_size) {
                 sd_flush(gc_cardman_fd);
                 log(LOG_INFO, "OK!\n");
@@ -433,8 +433,8 @@ static void gc_cardman_continue(void) {
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
 
-                log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
-                    1000000.0 * card_size / (end - cardprog_start) / 1024);
+                log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (double)(end - cardprog_start) / 1e6,
+                    1000000.0 * card_size / (double)(end - cardprog_start) / 1024);
                 if (cardman_cb)
                     cardman_cb(100, true);
 
@@ -455,7 +455,7 @@ static void gc_cardman_continue(void) {
 
 
             if (cardman_cb)
-                cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, cardman_operation == CARDMAN_IDLE);
+                cardman_cb((int)(100U * (uint64_t)cardprog_pos / (uint64_t)card_size), cardman_operation == CARDMAN_IDLE);
 
             cardman_segments_done++;
         }
@@ -541,7 +541,20 @@ void gc_cardman_open(void) {
 
     } else {
         gc_cardman_fd = sd_open(path, O_RDWR);
-        card_size = sd_filesize(gc_cardman_fd);
+        card_size = (uint32_t)sd_filesize(gc_cardman_fd);
+        switch (card_size) {
+            case 0x80000: // 0.5 MB / 4 MBit
+            case 0x100000: // 1 MB / 8 MBit
+            case 0x200000: // 2 MB / 16 MBit
+            case 0x400000: // 4 MB / 32 MBit
+            case 0x800000: // 8 MB / 64 MBit
+                break;
+            default:
+                sd_close(gc_cardman_fd);
+//                sd_remove(path);
+                fatal("invalid card size %u", card_size);
+        }
+
         cardman_operation = CARDMAN_OPEN;
         cardprog_pos = 0;
         cardman_segments_done = 0;
@@ -556,7 +569,7 @@ void gc_cardman_open(void) {
             cardman_cb(0, false);
     }
 
-    segment_count = card_size / SEGMENT_SIZE;
+    segment_count = (int32_t)(card_size / SEGMENT_SIZE);
 
     log(LOG_INFO, "Open Finished!\n");
 }
@@ -703,7 +716,7 @@ char *gc_cardman_get_progress_text(void) {
 
     if (cardman_operation != CARDMAN_IDLE)
         snprintf(progress, sizeof(progress), "%s %.2f kB/s", cardman_operation == CARDMAN_CREATE ? "Wr" : "Rd",
-                 1000000.0 * cardprog_pos / (time_us_64() - cardprog_start) / 1024);
+                 1000000.0 * cardprog_pos / (double)(time_us_64() - cardprog_start) / 1024);
     else
         snprintf(progress, sizeof(progress), "Switching...");
 
