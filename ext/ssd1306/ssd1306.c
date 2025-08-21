@@ -26,6 +26,7 @@ SOFTWARE.
 #include <pico/stdlib.h>
 #include <hardware/i2c.h>
 #include <pico/binary_info.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -52,10 +53,10 @@ inline static void ssd1306_write(ssd1306_t *p, uint8_t val) {
 }
 
 bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh, bool flipped) {
-    p->width=width;
-    p->height=height;
-    p->pages=height/8;
-    p->address=address;
+    p->width=(uint8_t)width;
+    p->height=(uint8_t)height;
+    p->pages=(uint8_t)(height/8);
+    p->address=(uint8_t)address;
 
     p->i2c_i=i2c_instance;
 
