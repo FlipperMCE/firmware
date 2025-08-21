@@ -36,7 +36,7 @@
 #define CARD_HOME_GC        "MemoryCards/GC"
 #define CARD_HOME_LENGTH    (17)
 
-static int segment_count = -1;
+static int32_t segment_count = -1;
 
 
 #define SEgment_COUNT_4MB (8*1024*1024 / SEGMENT_SIZE)
@@ -423,9 +423,9 @@ static void gc_cardman_continue(void) {
 
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        sd_seek(gc_cardman_fd, cardprog_pos * SEGMENT_SIZE, SEEK_SET);
         while ((time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
-            cardprog_pos = cardman_segments_done * SEGMENT_SIZE;
+            cardprog_pos = (uint32_t)cardman_segments_done * SEGMENT_SIZE;
+            sd_seek(gc_cardman_fd, (int32_t)(cardprog_pos * SEGMENT_SIZE), SEEK_SET);
             if (cardprog_pos >= card_size) {
                 sd_flush(gc_cardman_fd);
                 log(LOG_INFO, "OK!\n");
@@ -541,7 +541,20 @@ void gc_cardman_open(void) {
 
     } else {
         gc_cardman_fd = sd_open(path, O_RDWR);
-        card_size = sd_filesize(gc_cardman_fd);
+        card_size = (uint32_t)sd_filesize(gc_cardman_fd);
+        switch (card_size) {
+            case 0x80000: // 0.5 MB / 4 MBit
+            case 0x100000: // 1 MB / 8 MBit
+            case 0x200000: // 2 MB / 16 MBit
+            case 0x400000: // 4 MB / 32 MBit
+            case 0x800000: // 8 MB / 64 MBit
+                break;
+            default:
+                sd_close(gc_cardman_fd);
+//                sd_remove(path);
+                fatal("invalid card size %u", card_size);
+        }
+
         cardman_operation = CARDMAN_OPEN;
         cardprog_pos = 0;
         cardman_segments_done = 0;
