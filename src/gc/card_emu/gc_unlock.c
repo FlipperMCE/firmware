@@ -150,6 +150,10 @@ void __time_critical_func(mc_unlock_stage_0)(uint32_t offset_u32) {
     uint8_t _;
     initial_offset_u32 = offset_u32;
     initial_length_u32 = 0U;
+
+    // Request Page 0 already for 2nd stage
+    gc_mc_data_interface_setup_read_page(0, false);
+
     while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
 
     while (gc_receive(&_) != RECEIVE_RESET) {
@@ -200,8 +204,6 @@ void __time_critical_func(mc_unlock)(void) {
         init_cipher(&card_cipher, initial_offset_u32, initial_length_u32);
 
         log(LOG_TRACE, "Unlock Msg2: Initial Cipher is %08x\n", card_cipher);
-
-        gc_mc_data_interface_setup_read_page(0, false);
 
         volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page();
         gc_mc_data_interface_wait_for_byte(20);
