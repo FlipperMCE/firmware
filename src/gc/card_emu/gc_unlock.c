@@ -148,7 +148,6 @@ static void __time_critical_func(update_cipher)(uint32_t* cipher, uint32_t count
 
 void __time_critical_func(mc_unlock_stage_0)(uint32_t offset_u32) {
     uint8_t _;
-    dma_channel_start(DMA_WAIT_CHAN);
     initial_offset_u32 = offset_u32;
     initial_length_u32 = 0U;
     while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
