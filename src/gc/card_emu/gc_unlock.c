@@ -202,7 +202,7 @@ void __time_critical_func(mc_unlock)(void) {
 
         log(LOG_TRACE, "Unlock Msg2: Initial Cipher is %08x\n", card_cipher);
 
-        gc_mc_data_interface_setup_read_page(0, true);
+        gc_mc_data_interface_setup_read_page(0, false);
 
         volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page();
         gc_mc_data_interface_wait_for_byte(20);
