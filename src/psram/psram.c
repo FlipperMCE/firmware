@@ -1,5 +1,5 @@
 #include "config.h"
-#include "pico/platform.h"
+#include "pico.h"
 #include "psram.h"
 
 #include "pico/critical_section.h"
@@ -45,7 +45,7 @@ static void prepare_test_1(uint8_t *dst) {
 
 static void prepare_test_2(uint8_t *dst) {
     for (size_t i = 0; i < TEST_BLOCK_SIZE; ++i)
-        dst[i] = i % 256;
+        dst[i] = (uint8_t)i % 256;
 }
 
 static void prepare_test_3(uint8_t *dst) {
@@ -53,7 +53,7 @@ static void prepare_test_3(uint8_t *dst) {
 
     for (size_t i = 0; i < TEST_BLOCK_SIZE; ++i) {
         rng = rng * 1103515245 + 12345;
-        dst[i] = rng % 256;
+        dst[i] = (uint8_t)rng % 256;
     }
 }
 
@@ -64,7 +64,7 @@ static test_t psram_tests[] = {
     prepare_test_3,
 };
 
-#define NUM_TESTS (sizeof(psram_tests)/sizeof(*psram_tests))
+#define NUM_TESTS ((double)sizeof(psram_tests)/sizeof(*psram_tests))
 
 void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
     uint8_t *buf = vbuf;
@@ -91,20 +91,20 @@ void __time_critical_func(psram_write)(uint32_t addr, void *vbuf, size_t sz) {
 }
 
 uint32_t psram_write_dma_remaining() {
-    return dma_channel_hw_addr(PIO_SPI_DMA_TX_DATA_CHAN)->transfer_count;
+    return dma_channel_hw_addr((uint8_t)PIO_SPI_DMA_TX_DATA_CHAN)->transfer_count;
 }
 uint32_t psram_read_dma_remaining() {
-    return dma_channel_hw_addr(PIO_SPI_DMA_RX_DATA_CHAN)->transfer_count;
+    return dma_channel_hw_addr((uint8_t)PIO_SPI_DMA_RX_DATA_CHAN)->transfer_count;
 }
 
 inline void psram_wait_for_dma() {
     //while(pio_qspi_dma_active()) {tight_loop_contents();
     //printf("Rd: %u Wr: %u Reg: %08x\n", psram_read_dma_remaining(), psram_write_dma_remaining(), dma_channel_hw_addr(PIO_SPI_DMA_RX_DATA_CHAN)->ctrl_trig); if (cnt-- == 0) fatal("Took too long");
     //};
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
+    dma_channel_wait_for_finish_blocking((uint8_t)PIO_SPI_DMA_TX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking((uint8_t)PIO_SPI_DMA_RX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking((uint8_t)PIO_SPI_DMA_TX_DATA_CHAN);
+    dma_channel_wait_for_finish_blocking((uint8_t)PIO_SPI_DMA_RX_DATA_CHAN);
 }
 
 static void psram_run_tests(void) {
@@ -138,8 +138,8 @@ static void psram_run_tests(void) {
 
     uint64_t end = time_us_64();
     printf("PSRAM passed all tests -- took %.2f ms -- avg speed %.2f kB/s\n",
-        (end - start) / 1000.0,
-        1000000.0 * (NUM_TESTS * TEST_CYCLES * TEST_BLOCK_SIZE * 2) / (end - start) / 1024);
+        (double)(end - start) / 1000.0, (double)
+        1000000.0 * (double)(NUM_TESTS * TEST_CYCLES * TEST_BLOCK_SIZE * 2) / (double)(end - start) / 1024.0);
 }
 
 void psram_init(void) {
@@ -180,7 +180,7 @@ void psram_init(void) {
     /* and erase everything to 0xFF */
     uint8_t erasebuf[512];
     memset(erasebuf, 0xFF, sizeof(erasebuf));
-    for (int i = 0; i < 8 * 1024 * 1024; i += 512) {
+    for (uint32_t i = 0; i < 8 * 1024 * 1024; i += 512) {
         psram_write_dma(i, erasebuf, sizeof(erasebuf), NULL);
         psram_wait_for_dma();
     }

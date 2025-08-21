@@ -66,9 +66,9 @@ static void debug_task(void) {
         QPRINTF("Got %c Input\n", charin);
 
         char in[3] = {0};
-        in[0] = charin;
-        in[1] = getchar_timeout_us(1000*1000*3);
-        in[2] = getchar_timeout_us(1000*1000*3);
+        in[0] = (char)charin;
+        in[1] = (char)getchar_timeout_us(1000*1000*3);
+        in[2] = (char)getchar_timeout_us(1000*1000*3);
         if (in[0] == 'b') {
             if ((in[1] == 'l') && (in[2] == 'r')) {
                 QPRINTF("Resetting to Bootloader");
@@ -105,9 +105,9 @@ int main() {
 
     printf("prepare...\n");
 
-    int mhz = 240;
+    uint32_t mhz = 240;
 
-    set_sys_clock_khz(mhz * 1000, true);
+    set_sys_clock_khz(mhz * 1000U, true);
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
 #if DEBUG_USB_UART
