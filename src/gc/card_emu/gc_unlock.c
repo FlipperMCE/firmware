@@ -33,11 +33,7 @@ static void __time_critical_func(extract_flash_id)(uint8_t *flash_id,  uint8_t *
     // Create flash_id from base_serial
     uint64_t rand = time;
     uint8_t chks = 0;
-    //log(LOG_TRACE, "Time is: %016lx \n", time);
-    //log(LOG_TRACE, "Serial is ");
-    //for (int i = 0; i < 12; i++)
-    //    log(LOG_TRACE, "%02x ", serial[i]);
-    //log(LOG_TRACE, "\n");
+
     for (int i = 0; i < 12; i++)
     {
       rand = (((rand * (uint64_t)0x0000000041c64e6dULL) + (uint64_t)0x0000000000003039ULL) >> 16);
@@ -125,7 +121,7 @@ static void __time_critical_func(init_cipher)(uint32_t* cipher, uint32_t offset,
         c = (val>>7);
         r1 = (val^c);
         r2 = (b^r1);
-        r3 = ~(a^r2);		//eqv(a,r2)
+        r3 = ~(a^r2);
         r1 = (val|(r3<<31));
         *cipher = bitrev(r1);
     }
@@ -140,7 +136,7 @@ static void __time_critical_func(update_cipher)(uint32_t* cipher, uint32_t count
         c = (val<<7);
         r1 = (val^c);
         r2 = (b^r1);
-        r3 = ~(a^r2);		//eqv(a,r2)
+        r3 = ~(a^r2);
         r1 = (val|(r3>>31));
         *cipher = r1;
     }
@@ -178,7 +174,7 @@ void __time_critical_func(mc_unlock)(void) {
         gc_receiveOrNextCmd(&offset[0]);
 
         dma_channel_start(DMA_WAIT_CHAN);
-        //DPRINTF("Unlock Msg1: Raw Offset is %02x %02x %02x %02x / %02x\n", offset[3], offset[2], offset[1], offset[0], initial_length_u32);
+
         offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
         mc_unlock_stage_0(offset_u32);
 
@@ -195,11 +191,11 @@ void __time_critical_func(mc_unlock)(void) {
         gc_receiveOrNextCmd(&offset[1]);
         gc_receiveOrNextCmd(&offset[0]);
         offset_u32 = ((offset[1] << 24) & 0xFF000000) | ((offset[0] << 16) & 0x00FF0000);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
 
         dma_channel_start(DMA_WAIT_CHAN);
-        //len -= 20;
+
         log(LOG_TRACE, "Unlock Msg2: Decoded Offset is %08x / %02x\n", initial_offset_u32, initial_length_u32);
         init_cipher(&card_cipher, initial_offset_u32, initial_length_u32);
 
@@ -216,7 +212,7 @@ void __time_critical_func(mc_unlock)(void) {
         c = swap32(((uint32_t*)flash_id)[2]) ^ card_cipher;
         log(LOG_TRACE, "Unlock Msg2: Last serial cipher is %08x\n", card_cipher);
 
-        // Use 0x00s as challenge to have a predictable response
+        // Use 0x00s as challenge - card is not verifying cube any way
         update_cipher(&card_cipher, 32);
         d = 0x00000000 ^ card_cipher;
         update_cipher(&card_cipher, 32);
@@ -228,42 +224,42 @@ void __time_critical_func(mc_unlock)(void) {
         gc_mc_respond(a_pu8[2]);
         gc_mc_respond(a_pu8[1]);
         gc_mc_respond(a_pu8[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
         gc_mc_respond(b_pu8[3]);
         gc_mc_respond(b_pu8[2]);
         gc_mc_respond(b_pu8[1]);
         gc_mc_respond(b_pu8[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
         gc_mc_respond(c_pu8[3]);
         gc_mc_respond(c_pu8[2]);
         gc_mc_respond(c_pu8[1]);
         gc_mc_respond(c_pu8[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
         gc_mc_respond(d_pu8[3]);
         gc_mc_respond(d_pu8[2]);
         gc_mc_respond(d_pu8[1]);
         gc_mc_respond(d_pu8[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
         gc_mc_respond(e_pu8[3]);
         gc_mc_respond(e_pu8[2]);
         gc_mc_respond(e_pu8[1]);
         gc_mc_respond(e_pu8[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
-        gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
+        gc_receiveOrNextCmd(&_);
 
         while (gc_receive(&_) != RECEIVE_RESET) {
             len++;
