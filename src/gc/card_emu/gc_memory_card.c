@@ -214,13 +214,9 @@ static void __time_critical_func(mc_probe)(void) {
     uint8_t _;
     gc_receiveOrNextCmd(&_);
     gc_mc_respond(0x00); // out byte 3
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(0x00); // out byte 4
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(mc_probe_id[0]); // out byte 5
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(mc_probe_id[1]); // out byte 6
-    gc_receiveOrNextCmd(&_);
     card_state = 0x01;
 }
 
@@ -247,11 +243,9 @@ static void __time_critical_func(gc_mc_read)(void) {
 
     if ((test_offset_u32 >= 0x7FEC8000)
         && (test_offset_u32 <= 0x7FECF000)) {
-       // printf("Re-Auth!!\n");
         // Cube expects re-unlock
         card_state = 0x01;
         mc_unlock_stage_0(test_offset_u32);
-        //mc_unlock();
         return;
     }
 
@@ -285,10 +279,6 @@ static void __time_critical_func(gc_mc_write)(void) {
     gc_receiveOrNextCmd(&offset[1]);
     gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[0]);
-
-//    for (int i = 0; i < 128; i++) {
-//        gc_receiveOrNextCmd(&data[i]);
-//    }
 
     dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, &data[0], &pio0->rxf[cmd_reader.sm], 128, true);
 
@@ -397,10 +387,12 @@ static void __time_critical_func(mc_mce_cmd)(void) {
 
 static void __time_critical_func(mc_main_loop)(void) {
     card_state = 0x01;
+    uint8_t cmd;
+    uint8_t res;
 
     while (1) {
-        uint8_t cmd = 0;
-        uint8_t res = 0;
+        cmd = 0;
+        res = 0;
 
         while (!reset) {}; // Wait for reset
 
@@ -430,18 +422,22 @@ static void __time_critical_func(mc_main_loop)(void) {
                 break;
             case 0x81:
                 gc_receive(&interrupt_enable);
+                if (interrupt_enable & 0x01) {
+                    // Clear interrupt
+                    gpio_put(PIN_GC_INT, 1);
+                }
                 break;
-            case 0x83:
+            case 0x83: // Get card state
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
                 break;
-            case 0x85:
+            case 0x85: // Vendor ID, wii only
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 gc_receiveOrNextCmd(&_);
                 gc_mc_respond(0x01); // out byte 3
                 gc_mc_respond(0x01); // out byte 4
                 break;
-            case 0x89:
+            case 0x89: // Clear card state
                 card_state &= 0x41;
                 break;
             case 0x8B:
