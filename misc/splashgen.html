@@ -9,6 +9,7 @@
 </head>
 
 <body>
+
   <h2>FlipperMCE Splash Generator</h2>
 
   <input type="file" id="imgInput" accept="image/*" aria-label="Upload image" style="display:none;">
@@ -16,35 +17,35 @@
   <div class="controls">
     <div style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:700px;">
       <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
-        <span style="font-weight:600; color:#1a2a4a; min-width:90px;">Threshold</span>
+        <span style="font-weight:600; color:#6cb6ff; min-width:90px;">Threshold</span>
         <input type="range" id="threshSlider" min="0" max="255" value="128" style="width: 200px;"
           title="Set the threshold for black/white conversion (0=black, 255=white)">
         <span id="threshVal" style="min-width:36px; color:#2d8cf0; font-weight:600;">128</span>
       </div>
-      <div style="font-weight:600; color:#1a2a4a; margin-top:8px;">Grayscale Weights</div>
+      <div style="font-weight:600; color:#6cb6ff; margin-top:8px;">Grayscale Weights</div>
       <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
         <label title="Red channel weight (auto-normalized)">R
           <input type="range" id="rSlider" min="0" max="1" step="0.01" value="0.299"
             style="width: 100px; margin-left:6px;">
-          <span id="rVal" style="min-width:36px; color:#d33; font-weight:600;">0.299</span>
+          <span id="rVal" style="min-width:36px; color:#ff6b6b; font-weight:600;">0.299</span>
         </label>
         <label title="Green channel weight (auto-normalized)">G
           <input type="range" id="gSlider" min="0" max="1" step="0.01" value="0.587"
             style="width: 100px; margin-left:6px;">
-          <span id="gVal" style="min-width:36px; color:#3a3; font-weight:600;">0.587</span>
+          <span id="gVal" style="min-width:36px; color:#51fa7b; font-weight:600;">0.587</span>
         </label>
         <label title="Blue channel weight (auto-normalized)">B
           <input type="range" id="bSlider" min="0" max="1" step="0.01" value="0.114"
             style="width: 100px; margin-left:6px;">
-          <span id="bVal" style="min-width:36px; color:#36a; font-weight:600;">0.114</span>
+          <span id="bVal" style="min-width:36px; color:#6cb6ff; font-weight:600;">0.114</span>
         </label>
-        <span style="font-size: 0.9em; color: #888; margin-left:10px;">(weights auto-normalized)</span>
+        <span style="font-size: 0.9em; color: #aaa; margin-left:10px;">(weights auto-normalized)</span>
       </div>
       <div style="display:flex; justify-content:flex-end; margin-top:4px; gap:10px;">
         <button id="resetBtn"
-          style="padding:5px 18px; border-radius:7px; background:#e3ecfa; color:#1a2a4a; border:1.5px solid #bfc9d1; font-weight:600; cursor:pointer;">Reset</button>
+          style="padding:5px 18px; border-radius:7px; background:#232a36; color:#e3e6eb; border:1.5px solid #3a4252; font-weight:600; cursor:pointer;">Reset</button>
         <button id="clearSelBtn"
-          style="padding:5px 18px; border-radius:7px; background:#fbeee6; color:#a14; border:1.5px solid #f5c6cb; font-weight:600; cursor:pointer;">Clear
+          style="padding:5px 18px; border-radius:7px; background:#2d2a36; color:#ff6b6b; border:1.5px solid #6b2d2d; font-weight:600; cursor:pointer;">Clear
           Selection</button>
       </div>
     </div>
@@ -60,7 +61,7 @@
         <canvas id="selectCanvas"
           style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:auto; z-index:2; background:transparent;"></canvas>
         <div id="dropOverlay"
-          style="display:none; position:absolute; left:0; top:0; width:100%; height:100%; background:rgba(45,140,240,0.10); border-radius:10px; z-index:10; display:flex; align-items:center; justify-content:center; color:#2d8cf0; font-size:1.2em; font-weight:600; pointer-events:none; text-align:center; transition:background 0.2s;">
+          style="display:none; position:absolute; left:0; top:0; width:100%; height:100%; background:rgba(108,182,255,0.10); border-radius:10px; z-index:10; display:flex; align-items:center; justify-content:center; color:#6cb6ff; font-size:1.2em; font-weight:600; pointer-events:none; text-align:center; transition:background 0.2s;">
           Drop image here</div>
       </div>
 
@@ -70,10 +71,10 @@
       <canvas id="bwCanvas"></canvas>
       <div style="display:flex; flex-direction:row; gap:10px; margin-top:14px;">
         <button id="downloadBinBtn"
-          style="font-size:1em; padding:7px 18px; border-radius:7px; background:#2d8cf0; color:#fff; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(45,140,240,0.08);">Download
+          style="font-size:1em; padding:7px 18px; border-radius:7px; background:#6cb6ff; color:#181c24; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(108,182,255,0.18);">Download
           Binary</button>
         <button id="downloadUf2Btn"
-          style="font-size:1em; padding:7px 18px; border-radius:7px; background:#2d8cf0; color:#fff; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(45,140,240,0.08);">Download
+          style="font-size:1em; padding:7px 18px; border-radius:7px; background:#6cb6ff; color:#181c24; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(108,182,255,0.18);">Download
           UF2</button>
       </div>
 
@@ -81,10 +82,10 @@
   </div>
   </div>
   <div style="max-width:900px; margin: 28px auto 0 auto; width: 98vw;">
-    <label for="cArrayBox" style="font-weight:600; color:#1a2a4a; margin-bottom:6px; display:block;">C Header
+    <label for="cArrayBox" style="font-weight:600; color:#6cb6ff; margin-bottom:6px; display:block;">C Header
       Array:</label>
     <textarea id="cArrayBox" readonly aria-label="C header array"
-      style="width:100%; min-width:220px; max-width:100%; height:160px; font-family:monospace; font-size:0.98em; background:#f8fafc; color:#1a2a4a; border-radius:7px; border:1.5px solid #bfc9d1; padding:8px; resize:vertical; display:block;"></textarea>
+      style="width:100%; min-width:220px; max-width:100%; height:160px; font-family:monospace; font-size:0.98em; background:#232a36; color:#e3e6eb; border-radius:7px; border:1.5px solid #3a4252; padding:8px; resize:vertical; display:block;"></textarea>
   </div>
 
   <script src="uf2.js"></script>
@@ -361,13 +362,13 @@
       // Upscale the canvas to match the original image's display size
       const displayW = origImg.clientWidth;
       const displayH = origImg.clientHeight;
-      if (displayW && displayH) {
-        bwCanvas.style.width = '128px';
-        bwCanvas.style.height = '64px';
-      } else {
+      //if (displayW && displayH) {
+      //  bwCanvas.style.width = '128px';
+      //  bwCanvas.style.height = '64px';
+      //} else {
         bwCanvas.style.width = '300px';
         bwCanvas.style.height = 'auto';
-      }
+      //}
     }
 
 
