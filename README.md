@@ -6,6 +6,8 @@
 
 FlipperMCE is a *MemoryCard Emulator* that is heavily based on sd2psx by developer @xyzz (see [here](https://github.com/sd2psx)).
 
+## Features
+
 It has the following base feature set:
 
 - **BootCard**
@@ -16,15 +18,15 @@ It has the following base feature set:
 - **Per Card Configs**
 
 
-## BootCard
+### BootCard
 
 If active, FlipperMCE will always auto boot into a defined BootCard. This may be handy if there are config files on the card for swiss or other loaders.
 
-## Game ID
+### Game ID
 
 Many loaders implement a special protocol, that allows the cube to transmit the Game ID of the currently started game to an *MCE*. FlipperMCE supports this protocol (see *doc/mcp*) and will load or create a card for each trasmitted Game ID if configured so.
 
-## Mulitple CardSizes
+### Mulitple CardSizes
 
 *FlipperMCE* support Card Sizes from 4 - 64 MBits.
 
@@ -46,7 +48,7 @@ GT4P=FolderName
 *Note 2: Make sure there is an empty line at the end of the ini file.*
 
 
-## Settings File
+### Settings File
 
 *FlipperMCE* generates a settings file (`.flippermce/settings.ini`) that allows you to edit some settings through your computer. This is useful when using one SD card with multiple *FlipperMCE* devices.
 
@@ -72,7 +74,7 @@ Possible values are:
 
 *Note: Make sure there is an empty line at the end of the ini file.*
 
-## Per Card Configs
+### Per Card Configs
 
 There are some configuration values that can be modified on a per card base within a config file named  `CardX.ini` in a card folder, where `X` is the card index.
 
@@ -94,9 +96,22 @@ MaxChannels=8
 CardSize=8
 ```
 
+## Known issues
+
+### wii will not recognize the card as memory card
+
+Within the wii System Menu, the card may occasionally not be recognized. If this happens please try the following things:
+
+- Close and re-open Gamecube Cardbrowser
+- Switch the mounted card using the buttons on FlipperMCE
+- Re-Plug FlipperMCE
 
 ## Special Thanks to...
 
+- **Vapor, rippenbiest, Mancloud**: for beta testing ❤️
+- **@gameBitfunx**: for PCB design, testing and support ❤️
 - **@xyz**: for sd2psx ❤️
 - **sd2psXtd Team**: (you know who you are 😉 )
 - **8BitMods Team**: for helping out with card formatting and providing lots of other useful information for things like unlock ❤️
+- **@extrems**: For insights into EXI communications and libOGC2 SDK
+
