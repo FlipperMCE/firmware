@@ -292,9 +292,11 @@ static void ui_set_display_contrast(uint8_t display_contrast) {
 
 static void ui_set_cardsize(void) {
     for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
+
         uint8_t value = cardsize_options[i].value;
-        char text[12] = {};
-        snprintf(text, ARRAY_SIZE(text), "%c %u MBits", settings_get_gc_cardsize() == value ? '>' : ' ', value);
+        uint32_t blocks = (uint32_t)((value * 1024) / 64) - 5U;
+        char text[13] = {};
+        snprintf(text, ARRAY_SIZE(text), "%c %lu Blocks", settings_get_gc_cardsize() == value ? '>' : ' ', blocks);
         lv_label_set_text(cardsize_options[i].selection_lbl, text);
     }
 }
@@ -464,10 +466,12 @@ static void evt_gc_encoding(lv_event_t *event) {
 
 static void evt_set_gc_cardsize(lv_event_t *event) {
     uint8_t cardsize = (uint8_t)event->user_data;
+    uint32_t blocks = (uint32_t)((cardsize * 1024) / 64) - 5U;
+
     settings_set_gc_cardsize(cardsize);
 
     char text[12] = {};
-    snprintf(text, ARRAY_SIZE(text), "%u MBits>", cardsize);
+    snprintf(text, ARRAY_SIZE(text), "%lu >", blocks);
     lv_label_set_text(lbl_gc_cardsize, text);
     ui_set_cardsize();
     ui_menu_go_back(menu);
@@ -725,8 +729,9 @@ static void create_menu_screen(void) {
 
             for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
                 uint8_t value = cardsize_options[i].value;
-                char text[12] = {};
-                snprintf(text, ARRAY_SIZE(text), "%c %u MBits", settings_get_gc_cardsize() == value ? '>' : ' ', value);
+                uint32_t blocks = (uint32_t)((value * 1024) / 64) - 5U;
+                char text[14] = {};
+                snprintf(text, ARRAY_SIZE(text), "%c %lu Blocks", settings_get_gc_cardsize() == value ? '>' : ' ', blocks);
 
                 cont = ui_menu_cont_create_nav(cardsize_page);
                 cardsize_options[i].selection_lbl = ui_label_create_grow(cont, text);
@@ -745,8 +750,9 @@ static void create_menu_screen(void) {
         lv_obj_add_event_cb(cont, evt_gc_gameid, LV_EVENT_CLICKED, NULL);
 
         {
-            char text[11] = {};
-            snprintf(text, ARRAY_SIZE(text), "%u MBits>", settings_get_gc_cardsize());
+            char text[12] = {};
+            uint32_t blocks = (uint32_t)((settings_get_gc_cardsize() * 1024) / 64) - 5U;
+            snprintf(text, ARRAY_SIZE(text), "%lu >", blocks);
             cont = ui_menu_cont_create_nav(gc_page);
             ui_label_create_grow(cont, "Size");
             lbl_gc_cardsize = ui_label_create(cont, text);
@@ -1014,8 +1020,9 @@ void gui_task(void) {
             {
                 char info_text[32] = "";
                 if (settings_get_show_info()) {
-                    snprintf(info_text, sizeof(info_text), "%d MBit - %c",
-                             (gc_cardman_get_card_size() *8) / (1024*1024),
+                    uint32_t blocks = (gc_cardman_get_card_size() / (8 * 1024)) - 5U;
+                    snprintf(info_text, sizeof(info_text), "%lu Blocks - %c",
+                             blocks,
                              gc_cardman_get_card_enc() ? 'J' : 'W');
                 } else {
 
