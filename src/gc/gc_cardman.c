@@ -477,20 +477,7 @@ void gc_cardman_open(void) {
 
     switch (cardman_state) {
         case GC_CM_STATE_BOOT:
-            if (card_chan == 1) {
-                snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
-                if (!sd_exists(path)) {
-                    // before boot card channels, boot card was located at BOOT/BootCard.mcd, for backwards compatibility check if it exists
-                    snprintf(path, sizeof(path), "%s/%s/BootCard.mcd", cardhome, folder_name);
-                }
-                if (!sd_exists(path)) {
-                    // go back to BootCard-1.mcd if it doesn't
-                    snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
-                }
-            } else {
-                snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
-            }
-
+            snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
             settings_set_gc_boot_channel(card_chan);
             break;
         case GC_CM_STATE_NAMED:
