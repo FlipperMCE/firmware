@@ -17,8 +17,8 @@ void settings_set_gc_channel(int x);
 void settings_set_gc_boot_channel(int x);
 void settings_set_gc_cardsize(uint8_t size);
 
-bool settings_get_gc_autoboot(void);
-void settings_set_gc_autoboot(bool autoboot);
+bool settings_get_gc_boot_last(void);
+void settings_set_gc_boot_last(bool boot_last);
 bool settings_get_gc_game_id(void);
 void settings_set_gc_game_id(bool enabled);
 bool settings_get_gc_encoding(void);

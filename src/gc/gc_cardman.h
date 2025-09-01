@@ -9,7 +9,6 @@
 
 typedef enum  {
     GC_CM_STATE_NAMED,
-    GC_CM_STATE_BOOT,
     GC_CM_STATE_GAMEID,
     GC_CM_STATE_NORMAL
 } gc_cardman_state_t;
@@ -34,8 +33,6 @@ uint32_t gc_cardman_get_card_size(void);
 void gc_cardman_set_channel(uint16_t num);
 void gc_cardman_next_channel(void);
 void gc_cardman_prev_channel(void);
-
-void gc_cardman_switch_bootcard(void);
 
 void gc_cardman_set_idx(uint16_t num);
 void gc_cardman_next_idx(void);

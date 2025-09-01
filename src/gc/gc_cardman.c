@@ -86,7 +86,6 @@ static void update_encoding(void) {
                 card_enc = 0;
             }
             break;
-        case GC_CM_STATE_BOOT:
         case GC_CM_STATE_NORMAL:
         default:
             card_enc = settings_get_gc_encoding() ? 1 : 0;
@@ -96,20 +95,14 @@ static void update_encoding(void) {
     log(LOG_INFO, "card_enc=%d\n", card_enc);
 }
 
-static bool try_set_boot_card() {
-    if (!settings_get_gc_autoboot())
-        return false;
-
-    card_idx = GC_CARD_IDX_SPECIAL;
-    card_chan = settings_get_gc_boot_channel();
-    cardman_state = GC_CM_STATE_BOOT;
-    snprintf(folder_name, sizeof(folder_name), "BOOT");
-    return true;
-}
-
 static void set_default_card() {
-    card_idx = settings_get_gc_card();
-    card_chan = settings_get_gc_channel();
+    if (settings_get_gc_boot_last()) {
+        card_idx = settings_get_gc_card();
+        card_chan = settings_get_gc_channel();
+    } else {
+        card_idx = 1;
+        card_chan = 1;
+    }
     cardman_state = GC_CM_STATE_NORMAL;
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
@@ -476,16 +469,12 @@ void gc_cardman_open(void) {
     update_encoding();
 
     switch (cardman_state) {
-        case GC_CM_STATE_BOOT:
-            snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
-            settings_set_gc_boot_channel(card_chan);
-            break;
         case GC_CM_STATE_NAMED:
         case GC_CM_STATE_GAMEID:
-            snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
+            snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
             break;
         case GC_CM_STATE_NORMAL:
-            snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
+            snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
 
             /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
             settings_set_gc_card(card_idx);
@@ -497,7 +486,7 @@ void gc_cardman_open(void) {
     gc_mc_data_interface_card_changed();
 
     if (!sd_exists(path)) {
-        card_size = card_config_get_gc_cardsize(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024 / 8;
+        card_size = card_config_get_gc_cardsize(folder_name, folder_name) * 1024 * 1024 / 8;
         if (card_size == 0U) {
             card_size = settings_get_gc_cardsize() * 1024 * 1024 / 8;
         }
@@ -573,7 +562,7 @@ void gc_cardman_close(void) {
 }
 
 void gc_cardman_set_channel(uint16_t chan_num) {
-    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name);
+    uint8_t max_chan = card_config_get_max_channels(folder_name, folder_name);
     if (chan_num != card_chan)
         needs_update = true;
     if (chan_num <= max_chan && chan_num >= CHAN_MIN) {
@@ -583,7 +572,7 @@ void gc_cardman_set_channel(uint16_t chan_num) {
 }
 
 void gc_cardman_next_channel(void) {
-    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name);
+    uint8_t max_chan = card_config_get_max_channels(folder_name, folder_name);
     card_chan += 1;
     if (card_chan > max_chan)
         card_chan = CHAN_MIN;
@@ -591,18 +580,13 @@ void gc_cardman_next_channel(void) {
 }
 
 void gc_cardman_prev_channel(void) {
-    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == GC_CM_STATE_BOOT) ? "BootCard" : folder_name);
+    uint8_t max_chan = card_config_get_max_channels(folder_name, folder_name);
     card_chan -= 1;
     if (card_chan < CHAN_MIN)
         card_chan = max_chan;
     needs_update = true;
 }
 
-//TEMP
-void gc_cardman_switch_bootcard(void) {
-    if (try_set_boot_card())
-        needs_update = true;
-}
 
 void gc_cardman_set_idx(uint16_t idx_num) {
     if (idx_num != card_idx)
@@ -618,12 +602,7 @@ void gc_cardman_next_idx(void) {
     switch (cardman_state) {
         case GC_CM_STATE_NAMED:
             if (!try_set_prev_named_card()
-                && !try_set_boot_card()
                 && !try_set_game_id_card())
-                set_default_card();
-            break;
-        case GC_CM_STATE_BOOT:
-            if (!try_set_game_id_card())
                 set_default_card();
             break;
         case GC_CM_STATE_GAMEID: set_default_card(); break;
@@ -642,20 +621,15 @@ void gc_cardman_next_idx(void) {
 void gc_cardman_prev_idx(void) {
     switch (cardman_state) {
         case GC_CM_STATE_NAMED:
-        case GC_CM_STATE_BOOT:
+        case GC_CM_STATE_GAMEID:
             if (!try_set_next_named_card())
                 set_default_card();
-            break;
-        case GC_CM_STATE_GAMEID:
-            if (!try_set_boot_card())
-                if (!try_set_next_named_card())
-                    set_default_card();
             break;
         case GC_CM_STATE_NORMAL:
             card_idx -= 1;
             card_chan = CHAN_MIN;
             if (card_idx <= GC_CARD_IDX_SPECIAL) {
-                if (!try_set_game_id_card() && !try_set_boot_card() && !try_set_next_named_card())
+                if (!try_set_game_id_card() && !try_set_next_named_card())
                     set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
@@ -746,8 +720,7 @@ bool gc_cardman_is_idle(void) {
 void gc_cardman_init(void) {
     cardman_operation = CARDMAN_IDLE;
     cardman_state = GC_CM_STATE_NORMAL;
-    if (!try_set_boot_card())
-        set_default_card();
+    set_default_card();
 }
 
 void gc_cardman_task(void) {
