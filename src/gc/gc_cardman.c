@@ -15,6 +15,7 @@
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_dirty.h"
+#include "pico/types.h"
 #include "psram/psram.h"
 
 #include "sd.h"
@@ -97,14 +98,26 @@ static void update_encoding(void) {
 
 static void set_default_card() {
     if (settings_get_gc_boot_last()) {
-        card_idx = settings_get_gc_card();
-        card_chan = settings_get_gc_channel();
+        uint8_t state;
+        settings_get_gc_last_card(&state, &card_idx, &card_chan, folder_name);
+        switch (state) {
+            case (uint8_t)GC_CM_STATE_NAMED:
+            case (uint8_t)GC_CM_STATE_GAMEID:
+            case (uint8_t)GC_CM_STATE_NORMAL:
+                cardman_state = (gc_cardman_state_t)state;
+                break;
+            default:
+                cardman_state = GC_CM_STATE_NORMAL;
+                break;
+        }
     } else {
+        cardman_state = GC_CM_STATE_NORMAL;
         card_idx = 1;
         card_chan = 1;
     }
-    cardman_state = GC_CM_STATE_NORMAL;
-    snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+    if (folder_name[0] == 0x00)
+        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+
 }
 
 static bool try_set_game_id_card() {
@@ -468,19 +481,9 @@ void gc_cardman_open(void) {
     ensuredirs();
     update_encoding();
 
-    switch (cardman_state) {
-        case GC_CM_STATE_NAMED:
-        case GC_CM_STATE_GAMEID:
-            snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
-            break;
-        case GC_CM_STATE_NORMAL:
-            snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
-
-            /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
-            settings_set_gc_card(card_idx);
-            settings_set_gc_channel(card_chan);
-            break;
-    }
+    snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
+    /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
+    settings_set_gc_last_card((uint8_t)cardman_state, card_idx, card_chan, folder_name);
 
     log(LOG_INFO, "Switching to card path = %s\n", path);
     gc_mc_data_interface_card_changed();

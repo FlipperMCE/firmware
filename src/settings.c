@@ -1,5 +1,7 @@
 #include "settings.h"
 
+#include <gc/gc_cardman.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,11 +15,12 @@
 /* NOTE: for any change to the layout/size of this structure (that gets shipped to users),
    ensure to increase the version magic below -- this will trigger setting reset on next boot */
 typedef struct {
+    char gc_last_folder_name[32];
     uint32_t version_magic;
     uint16_t gc_card;
-    uint8_t pad_0[2];
+    uint8_t last_state;
     uint8_t gc_channel;
-    uint8_t gc_boot_channel;
+    uint8_t pad[2];
     uint8_t gc_flags; // TODO: single bit options
     uint8_t sys_flags; // TODO: single bit options: whether gc or gc mode, etc
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
@@ -34,14 +37,14 @@ typedef struct {
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC             (0xAACE0000)
+#define SETTINGS_VERSION_MAGIC             (0xAACF0000)
 #define SETTINGS_GC_FLAGS_BOOT_LAST        (0b0000001)
 #define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
 #define SETTINGS_GC_FLAGS_ENC              (0b0000100)  // Card Encoding Default is Japanese
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
 #define SETTINGS_SYS_FLAGS_SHOW_INFO       (0b0000100)
 
-_Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
+_Static_assert(sizeof(settings_t) == 48, "unexpected padding in the settings structure");
 
 static settings_t settings;
 static serialized_settings_t serialized_settings;
@@ -160,6 +163,7 @@ static void settings_reset(void) {
     settings.display_vcomh = 0x30; // 0.83 x VCC
     settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_BOOT_LAST;
     settings.gc_cardsize = 64;
+    settings.last_state = GC_CM_STATE_NORMAL;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -190,7 +194,6 @@ void settings_init(void) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
     }
-
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
@@ -215,11 +218,16 @@ int settings_get_gc_channel(void) {
     return settings.gc_channel;
 }
 
-int settings_get_gc_boot_channel(void) {
-    if (settings.gc_boot_channel < CHAN_MIN)
-        return CHAN_MIN;
-    return settings.gc_boot_channel;
+void settings_get_gc_last_card(uint8_t *state, int *card, int *chan, char* folder_name) {
+    if (state) *state = settings.last_state;
+    if (card) *card = settings_get_gc_card();
+    if (chan) *chan = settings_get_gc_channel();
+    if ((folder_name) && (*state != (uint8_t)GC_CM_STATE_NORMAL))
+        strlcpy(folder_name, settings.gc_last_folder_name, sizeof(settings.gc_last_folder_name));
+    else
+        memset(folder_name, 0, sizeof(settings.gc_last_folder_name));
 }
+
 
 uint8_t settings_get_gc_cardsize(void) {
     return settings.gc_cardsize;
@@ -239,11 +247,16 @@ void settings_set_gc_channel(int chan) {
     }
 }
 
-void settings_set_gc_boot_channel(int chan) {
-    if (chan != settings.gc_boot_channel) {
-        settings.gc_boot_channel = chan;
-        SETTINGS_UPDATE_FIELD(gc_boot_channel);
-    }
+void settings_set_gc_last_card(uint8_t state, int card, int chan, char* folder_name) {
+    settings.last_state = state;
+    settings.gc_card = (uint16_t)card;
+    settings.gc_channel = (uint8_t)chan;
+    memset(settings.gc_last_folder_name, 0, sizeof(settings.gc_last_folder_name));
+    strlcpy(settings.gc_last_folder_name, folder_name, sizeof(settings.gc_last_folder_name));
+    SETTINGS_UPDATE_FIELD(last_state);
+    SETTINGS_UPDATE_FIELD(gc_card);
+    SETTINGS_UPDATE_FIELD(gc_channel);
+    SETTINGS_UPDATE_FIELD(gc_last_folder_name);
 }
 
 void settings_set_gc_cardsize(uint8_t size) {

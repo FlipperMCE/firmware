@@ -9,12 +9,13 @@ void settings_init(void);
 
 int settings_get_gc_card(void);
 int settings_get_gc_channel(void);
-int settings_get_gc_boot_channel(void);
+void settings_get_gc_last_card(uint8_t *state, int *card, int *chan, char* folder_name);
 uint8_t settings_get_gc_cardsize(void);
 int settings_get_gc_variant(void);
 void settings_set_gc_card(int x);
 void settings_set_gc_channel(int x);
 void settings_set_gc_boot_channel(int x);
+void settings_set_gc_last_card(uint8_t state, int card, int chan, char* folder_name);
 void settings_set_gc_cardsize(uint8_t size);
 
 bool settings_get_gc_boot_last(void);
