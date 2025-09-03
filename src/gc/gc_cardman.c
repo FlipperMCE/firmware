@@ -605,8 +605,12 @@ void gc_cardman_next_idx(void) {
     switch (cardman_state) {
         case GC_CM_STATE_NAMED:
             if (!try_set_prev_named_card()
-                && !try_set_game_id_card())
-                set_default_card();
+                && !try_set_game_id_card()) {
+                card_idx = 1;
+                card_chan = CHAN_MIN;
+                cardman_state = GC_CM_STATE_NORMAL;
+                snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+            }
             break;
         case GC_CM_STATE_GAMEID: set_default_card(); break;
         case GC_CM_STATE_NORMAL:
@@ -625,8 +629,12 @@ void gc_cardman_prev_idx(void) {
     switch (cardman_state) {
         case GC_CM_STATE_NAMED:
         case GC_CM_STATE_GAMEID:
-            if (!try_set_next_named_card())
-                set_default_card();
+            if (!try_set_next_named_card()) {
+                card_idx = 1;
+                card_chan = CHAN_MIN;
+                cardman_state = GC_CM_STATE_NORMAL;
+                snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+            }
             break;
         case GC_CM_STATE_NORMAL:
             card_idx -= 1;
