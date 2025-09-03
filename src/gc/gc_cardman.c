@@ -96,6 +96,13 @@ static void update_encoding(void) {
     log(LOG_INFO, "card_enc=%d\n", card_enc);
 }
 
+static void set_default_numbered_card() {
+    card_idx = 1;
+    card_chan = CHAN_MIN;
+    cardman_state = GC_CM_STATE_NORMAL;
+    snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+}
+
 static void set_default_card() {
     if (settings_get_gc_boot_last()) {
         uint8_t state;
@@ -111,13 +118,10 @@ static void set_default_card() {
                 break;
         }
     } else {
-        cardman_state = GC_CM_STATE_NORMAL;
-        card_idx = 1;
-        card_chan = 1;
+        set_default_numbered_card();
     }
     if (folder_name[0] == 0x00)
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-
 }
 
 static bool try_set_game_id_card() {
@@ -606,10 +610,7 @@ void gc_cardman_next_idx(void) {
         case GC_CM_STATE_NAMED:
             if (!try_set_prev_named_card()
                 && !try_set_game_id_card()) {
-                card_idx = 1;
-                card_chan = CHAN_MIN;
-                cardman_state = GC_CM_STATE_NORMAL;
-                snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+                set_default_numbered_card();
             }
             break;
         case GC_CM_STATE_GAMEID: set_default_card(); break;
@@ -630,10 +631,7 @@ void gc_cardman_prev_idx(void) {
         case GC_CM_STATE_NAMED:
         case GC_CM_STATE_GAMEID:
             if (!try_set_next_named_card()) {
-                card_idx = 1;
-                card_chan = CHAN_MIN;
-                cardman_state = GC_CM_STATE_NORMAL;
-                snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+                set_default_numbered_card();
             }
             break;
         case GC_CM_STATE_NORMAL:
