@@ -5,12 +5,12 @@
 
 /* 4k before eeprom starts */
 #ifndef FLASH_OFF_SPLASH
-    #define FLASH_OFF_SPLASH (0x7fb000)
+    #define FLASH_OFF_SPLASH (0x1fb000)
 #endif
 
 /* 16k space before 8MB boundary */
 #ifndef FLASH_OFF_EEPROM
-    #define FLASH_OFF_EEPROM (0x7fc000)
+    #define FLASH_OFF_EEPROM (0x1fc000)
 #endif
 
 /* at the 8MB boundary */

@@ -20,7 +20,7 @@ if (VARIANT STREQUAL "FlipperMCE")
                             "SD_MOSI=27"
                             "SD_SCK=26"
                             "SD_CS=29"
-                            "FLASH_OFF_EEPROM=0x7fc000"
+                            "FLASH_OFF_EEPROM=0x1fc000"
                             "MMCE_PRODUCT_ID=0x1"
                             "PIN_SENSE=15"
                             "PIN_BTN_LEFT=21"
