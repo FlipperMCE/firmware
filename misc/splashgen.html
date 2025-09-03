@@ -15,7 +15,7 @@
   <input type="file" id="imgInput" accept="image/*" aria-label="Upload image" style="display:none;">
 
   <div class="controls">
-    <div style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:700px;">
+  <div style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:700px;">
       <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
         <span style="font-weight:600; color:#6cb6ff; min-width:90px;">Threshold</span>
         <input type="range" id="threshSlider" min="0" max="255" value="128" style="width: 200px;"
@@ -76,7 +76,11 @@
         <button id="downloadUf2Btn"
           style="font-size:1em; padding:7px 18px; border-radius:7px; background:#6cb6ff; color:#181c24; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(108,182,255,0.18);">Download
           UF2</button>
+        <button id="downloadCombinedBtn"
+          style="font-size:1em; padding:7px 18px; border-radius:7px; background:#6cb6ff; color:#181c24; border:none; cursor:pointer; box-shadow:0 2px 8px 0 rgba(108,182,255,0.18);">Download
+          Combined UF2</button>
       </div>
+      <div id="firmwareDropzone" style="margin-top:18px; padding:24px 18px; border:2px dashed #6cb6ff; border-radius:10px; background:#232a36; color:#6cb6ff; text-align:center; font-weight:600; cursor:pointer; transition:border-color 0.2s, background 0.2s;">Drop firmware UF2 here or click to select</div>
 
     </div>
   </div>
@@ -561,18 +565,97 @@
     updateLabels();
 
     // Download UF2 handler
+    let logoUf2 = null;
     document.getElementById('downloadUf2Btn').addEventListener('click', function () {
       const colorTable = new Uint8Array(COLOR_TABLE);
       const bin = getBWBinaryArray();
       const full = new Uint8Array(colorTable.length + bin.length);
       full.set(colorTable, 0);
       full.set(bin, colorTable.length);
-      const uf2 = payloadToUf2(full.buffer, 'logo.uf2');
-      const blob = new Blob([uf2], { type: 'application/octet-stream' });
+      logoUf2 = payloadToUf2(full.buffer);
+      const blob = new Blob([logoUf2], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'logo.uf2';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    });
+
+    // Firmware UF2 upload and combine logic
+    let uploadedFirmwareUf2 = null;
+    const firmwareDropzone = document.getElementById('firmwareDropzone');
+    firmwareDropzone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      firmwareDropzone.style.borderColor = '#2d8cf0';
+      firmwareDropzone.style.background = '#2d3a56';
+    });
+    firmwareDropzone.addEventListener('dragleave', function(e) {
+      firmwareDropzone.style.borderColor = '#6cb6ff';
+      firmwareDropzone.style.background = '#232a36';
+    });
+    firmwareDropzone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      firmwareDropzone.style.borderColor = '#6cb6ff';
+      firmwareDropzone.style.background = '#232a36';
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (!file.name.endsWith('.uf2')) {
+          alert('Please drop a UF2 firmware file.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          uploadedFirmwareUf2 = ev.target.result;
+          firmwareDropzone.textContent = 'Firmware UF2 uploaded: ' + file.name;
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+    // Optional: click to select file
+    firmwareDropzone.addEventListener('click', function() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.uf2';
+      input.style.display = 'none';
+      input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          uploadedFirmwareUf2 = ev.target.result;
+          firmwareDropzone.textContent = 'Firmware UF2 uploaded: ' + file.name;
+        };
+        reader.readAsArrayBuffer(file);
+      };
+      document.body.appendChild(input);
+      input.click();
+      setTimeout(() => document.body.removeChild(input), 1000);
+    });
+
+    document.getElementById('downloadCombinedBtn').addEventListener('click', function() {
+      if (!uploadedFirmwareUf2) {
+        alert('Please upload a firmware UF2 file first.');
+        return;
+      }
+      const colorTable = new Uint8Array(COLOR_TABLE);
+      const bin = getBWBinaryArray();
+      const full = new Uint8Array(colorTable.length + bin.length);
+      full.set(colorTable, 0);
+      full.set(bin, colorTable.length);
+      const logoUf2 = payloadToUf2(full.buffer);
+
+      // Merge using uf2.js
+      const merged = mergeUf2Files(uploadedFirmwareUf2, logoUf2.buffer);
+      const blob = new Blob([merged], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'combined.uf2';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {

@@ -6,7 +6,7 @@ const UF2_MAGIC_END = 0x0AB16F30;
 const UF2_BLOCK_SIZE = 512;
 const UF2_PAYLOAD_SIZE = 256;
 const UF2_FAMILY_ID = 0xe48bff56;
-const UF2_BASE_ADDR = 0x107fb000;
+const UF2_BASE_ADDR = 0x101fb000;
 const MAX_FILE_SIZE = 16576512;
 
 
@@ -48,7 +48,7 @@ function mergeUf2Files(uf2_1, uf2_2) {
     mergedUf2.set(new Uint8Array(uf2_1), 0);
     mergedUf2.set(new Uint8Array(uf2_2), uf2_1.byteLength);
 
-    const numBlocks = Math.ceil(mergedUf2.length / UF2_PAYLOAD_SIZE);
+    const numBlocks = Math.ceil(mergedUf2.length / UF2_BLOCK_SIZE);
 
     for (let blockNum = 0; blockNum < numBlocks; ++blockNum) {
         const ptr = blockNum * UF2_BLOCK_SIZE;
