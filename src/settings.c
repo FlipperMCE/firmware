@@ -38,7 +38,7 @@ typedef struct {
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
 #define SETTINGS_VERSION_MAGIC             (0xAACF0000)
-#define SETTINGS_GC_FLAGS_BOOT_LAST        (0b0000001)
+#define SETTINGS_GC_FLAGS_CARD_RESTORE     (0b0000001)
 #define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
 #define SETTINGS_GC_FLAGS_ENC              (0b0000100)  // Card Encoding Default is Japanese
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
@@ -58,9 +58,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     #define DIFFERS(v, s) ((strcmp(v, "ON") == 0) != s)
-    if (MATCH("GC", "BootLast")
-        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_BOOT_LAST) > 0))) {
-        _s->gc_flags ^= SETTINGS_GC_FLAGS_BOOT_LAST;
+    if (MATCH("GC", "CardRestore")
+        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0))) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_CARD_RESTORE;
     } else if (MATCH("GC", "GameID")
         && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0))) {
         _s->gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
@@ -139,7 +139,7 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[GC]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "BootLast=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_BOOT_LAST) > 0) ? "ON" : "OFF");
+        written = snprintf(line_buffer, 256, "CardRestore=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
@@ -161,7 +161,7 @@ static void settings_reset(void) {
     settings.display_timeout = 0; // off
     settings.display_contrast = 255; // 100%
     settings.display_vcomh = 0x30; // 0.83 x VCC
-    settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_BOOT_LAST;
+    settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_CARD_RESTORE;
     settings.gc_cardsize = 64;
     settings.last_state = GC_CM_STATE_NORMAL;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
@@ -266,13 +266,13 @@ void settings_set_gc_cardsize(uint8_t size) {
     }
 }
 
-bool settings_get_gc_boot_last(void) {
-    return (settings.gc_flags & SETTINGS_GC_FLAGS_BOOT_LAST);
+bool settings_get_gc_card_restore(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE);
 }
 
-void settings_set_gc_boot_last(bool boot_last) {
-    if (boot_last != settings_get_gc_boot_last())
-        settings.gc_flags ^= SETTINGS_GC_FLAGS_BOOT_LAST;
+void settings_set_gc_card_restore(bool card_restore) {
+    if (card_restore != settings_get_gc_card_restore())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_CARD_RESTORE;
     SETTINGS_UPDATE_FIELD(gc_flags);
 }
 

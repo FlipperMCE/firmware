@@ -104,7 +104,7 @@ static void set_default_numbered_card() {
 }
 
 static void set_default_card() {
-    if (settings_get_gc_boot_last()) {
+    if (settings_get_gc_card_restore()) {
         uint8_t state;
         settings_get_gc_last_card(&state, &card_idx, &card_chan, folder_name);
         switch (state) {

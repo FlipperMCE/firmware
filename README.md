@@ -10,7 +10,7 @@ FlipperMCE is a *MemoryCard Emulator* that is heavily based on sd2psx by develop
 
 It has the following base feature set:
 
-- **BootCard**
+- **Card Restore**
 - **Game ID**
 - **Multiple CardSizes**
 - **Game2Folder mapping**
@@ -18,9 +18,9 @@ It has the following base feature set:
 - **Per Card Configs**
 
 
-### BootCard
+### Card Restore
 
-If active, FlipperMCE will always auto boot into a defined BootCard. This may be handy if there are config files on the card for swiss or other loaders.
+If active, FlipperMCE will always boot to the last used card.
 
 ### Game ID
 
@@ -58,7 +58,7 @@ A settings file has the following format:
 [General]
 FlippedScreen=OFF
 [GC]
-Autoboot=ON
+CardRestore=ON
 GameID=ON
 CardSize=64
 ```
@@ -67,7 +67,7 @@ Possible values are:
 
 | Setting       | Values                                |
 |---------------|---------------------------------------|
-| AutoBoot      | `OFF`, `ON`                           |
+| CardRestore   | `OFF`, `ON`                           |
 | GameID        | `OFF`, `ON`                           |
 | CardSize      | `4`, `8`, `16`, `32`, `64`            |
 | FlippedScreen | `ON`, `OFF`                           |
