@@ -701,13 +701,7 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Flip");
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
-/**
-        cont = ui_menu_cont_create_nav(display_page);
-        ui_label_create_grow(cont, "Deploy splash");
-        ui_label_create(cont, ">");
-        ui_menu_set_load_page_event(menu, cont, splash_page);
-        lv_obj_add_event_cb(cont, evt_do_splash_install, LV_EVENT_CLICKED, NULL);
-*/
+
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Show Info");
         lbl_show_info = ui_label_create(cont, settings_get_show_info() ? " Yes" : " No");
@@ -1006,8 +1000,7 @@ void gui_task(void) {
             if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }
-            if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
-
+            if (!card_name[0] || cardman_state == GC_CM_STATE_NAMED) {
                 game_db_get_game_name(folder_name, card_name);
             }
 
