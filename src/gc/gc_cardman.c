@@ -106,17 +106,15 @@ static void set_default_numbered_card() {
 static void set_default_card() {
     if (settings_get_gc_card_restore()) {
         uint8_t state;
+        char game_id[5] = {0};
         settings_get_gc_last_card(&state, &card_idx, &card_chan, folder_name);
-        if (state == (uint8_t)GC_CM_STATE_GAMEID) {
-            char game_id[16] = {0};
-            game_db_extract_game_id(folder_name, game_id);
-            game_db_update_game(folder_name);
-        }
         switch (state) {
             case (uint8_t)GC_CM_STATE_NAMED:
             case (uint8_t)GC_CM_STATE_GAMEID:
             case (uint8_t)GC_CM_STATE_NORMAL:
                 cardman_state = (gc_cardman_state_t)state;
+                game_db_extract_game_id(folder_name, game_id);
+                game_db_update_game(game_id);
                 break;
             default:
                 cardman_state = GC_CM_STATE_NORMAL;
