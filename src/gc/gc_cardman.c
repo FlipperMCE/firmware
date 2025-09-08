@@ -613,7 +613,7 @@ void gc_cardman_next_idx(void) {
                 set_default_numbered_card();
             }
             break;
-        case GC_CM_STATE_GAMEID: set_default_card(); break;
+        case GC_CM_STATE_GAMEID: set_default_numbered_card(); break;
         case GC_CM_STATE_NORMAL:
             card_idx += 1;
             card_chan = CHAN_MIN;
@@ -639,7 +639,7 @@ void gc_cardman_prev_idx(void) {
             card_chan = CHAN_MIN;
             if (card_idx <= GC_CARD_IDX_SPECIAL) {
                 if (!try_set_game_id_card() && !try_set_next_named_card())
-                    set_default_card();
+                    set_default_numbered_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }
