@@ -125,7 +125,7 @@ void game_db_update_game(const char* const game_id) {
     current_game = find_game_lookup(game_id);
 }
 
-static void game_db_extract_game_id(const char* const game_id, char* const game_id_out) {
+void game_db_extract_game_id(const char* const game_id, char* const game_id_out) {
     if ((strlen(game_id) == MAX_GAME_ID_LENGTH-1) && (memcmp(game_id, "DL-DOL", 6) == 0)) {
         memcpy(game_id_out, game_id + 7, 4);
     } else {

@@ -107,6 +107,11 @@ static void set_default_card() {
     if (settings_get_gc_card_restore()) {
         uint8_t state;
         settings_get_gc_last_card(&state, &card_idx, &card_chan, folder_name);
+        if (state == (uint8_t)GC_CM_STATE_GAMEID) {
+            char game_id[16] = {0};
+            game_db_extract_game_id(folder_name, game_id);
+            game_db_update_game(folder_name);
+        }
         switch (state) {
             case (uint8_t)GC_CM_STATE_NAMED:
             case (uint8_t)GC_CM_STATE_GAMEID:
@@ -483,11 +488,11 @@ void gc_cardman_open(void) {
 
     sd_init();
     ensuredirs();
-    update_encoding();
 
     snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
     /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
     settings_set_gc_last_card((uint8_t)cardman_state, card_idx, card_chan, folder_name);
+    update_encoding();
 
     log(LOG_INFO, "Switching to card path = %s\n", path);
     gc_mc_data_interface_card_changed();
