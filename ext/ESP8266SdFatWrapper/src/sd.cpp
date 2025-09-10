@@ -26,6 +26,10 @@ extern "C" void sd_init() {
         SD_PERIPH.setTX(SD_MOSI);
         SD_PERIPH.setSCK(SD_SCK);
         SD_PERIPH.setCS(SD_CS);
+        gpio_set_drive_strength(SD_SCK, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_drive_strength(SD_MOSI, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_drive_strength(SD_CS, GPIO_DRIVE_STRENGTH_12MA);
+
 
         int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SD_PERIPH));
         if (ret != 1) {
@@ -52,6 +56,13 @@ void sdCsWrite(SdCsPin_t pin, bool level) {
 
 extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
+    if (!initialized) {
+        sd_init();
+    }
+
+    if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
+        return -1;
+    }
 
     for (fd = 0; fd < NUM_FILES; ++fd)
         if (!files[fd].isOpen())
@@ -118,8 +129,13 @@ extern "C" uint32_t sd_tell(int fd) {
 }
 
 extern "C" int sd_mkdir(const char *path) {
-    /* return 1 on error */
-    return sd.mkdir(path) != true;
+    if (sd_exists(path)) {
+        /* return 0 if the directory already exists */
+        return 0;
+    } else {
+        /* return 1 on error */
+        return sd.mkdir(path) != true;
+    }
 }
 
 extern "C" int sd_exists(const char *path) {
@@ -188,39 +204,39 @@ extern "C" void mapTime(const uint16_t date, const uint16_t time, uint8_t* const
 }
 
 //Get stat and convert to format fileio expects
-extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
+extern "C" int sd_get_stat(int fd, gc_fileio_stat_t* const gc_fileio_stat) {
     CHECK_FD(fd);
 
     uint16_t date, time;
 
     //FIO_S_IFREG
     if (files[fd].isFile())
-        ps2_fileio_stat->mode = FIO_S_IFREG;
+        gc_fileio_stat->mode = FIO_S_IFREG;
     //FIO_S_IFDIR
     else if (files[fd].isDir())
-        ps2_fileio_stat->mode = FIO_S_IFDIR;
+        gc_fileio_stat->mode = FIO_S_IFDIR;
 
     //FIO_S_IROTH
     if (files[fd].isReadable())
-        ps2_fileio_stat->mode |= FIO_S_IROTH;
+        gc_fileio_stat->mode |= FIO_S_IROTH;
 
     //FIO_S_IWOTH
     if (files[fd].isWritable())
-        ps2_fileio_stat->mode |= FIO_S_IWOTH;
+        gc_fileio_stat->mode |= FIO_S_IWOTH;
 
     //FIO_S_IXOTH - TODO
 
-    ps2_fileio_stat->attr = 0x0; //TODO
-    ps2_fileio_stat->size = (uint32_t)files[fd].fileSize();
+    gc_fileio_stat->attr = 0x0; //TODO
+    gc_fileio_stat->size = (uint32_t)files[fd].fileSize();
 
     files[fd].getCreateDateTime(&date, &time);
-    mapTime(date, time, ps2_fileio_stat->ctime);
+    mapTime(date, time, gc_fileio_stat->ctime);
     files[fd].getAccessDateTime(&date, &time);
-    mapTime(date, time, ps2_fileio_stat->atime);
+    mapTime(date, time, gc_fileio_stat->atime);
     files[fd].getModifyDateTime(&date, &time);
-    mapTime(date, time, ps2_fileio_stat->mtime);
+    mapTime(date, time, gc_fileio_stat->mtime);
 
-    ps2_fileio_stat->hisize = (files[fd].fileSize() >> 32);
+    gc_fileio_stat->hisize = (files[fd].fileSize() >> 32);
 
     return 0;
 }
@@ -251,4 +267,8 @@ extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
         return files[fd].seekEnd(offset) != true;
     }
     return 1;
+}
+
+extern "C" int sd_rename(const char* old_path, const char* new_path) {
+    return sd.rename(old_path, new_path) != true;
 }

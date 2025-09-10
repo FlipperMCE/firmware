@@ -1,10 +1,12 @@
 #include "card_emu/gc_mc_data_interface.h"
+#include "card_emu/gc_memory_card.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "gc_cardman.h"
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "hardware/structs/iobank0.h"
 
 #include "mmceman/gc_mmceman.h"
 #include "pico/multicore.h"
@@ -28,7 +30,7 @@
 
 static uint64_t gc_us_startup;
 
-static volatile int reset;
+volatile int reset;
 
 typedef struct {
     uint32_t offset;
@@ -39,7 +41,7 @@ static pio_t cmd_reader, dat_writer, clock_probe;
 static uint8_t interrupt_enable = 0;
 uint8_t card_state;
 
-static dma_channel_config dma_wait_config;
+static dma_channel_config dma_wait_config, dma_write_config;
 static uint8_t _;
 
 
@@ -64,8 +66,45 @@ static void __time_critical_func(reset_pio)(void) {
     pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
+//    pio_sm_clear_fifos(pio0, dat_writer.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm) );
+
+    reset = 1;
+}
+
+static void __time_critical_func(init_pio)(void) {
+
+    /* Set all pins as floating inputs */
+    gpio_set_dir(PIN_GC_SEL, 0);
+    gpio_set_dir(PIN_GC_CLK, 0);
+    gpio_set_dir(PIN_GC_DI, 0);
+    gpio_set_dir(PIN_GC_DO, 0);
+    gpio_disable_pulls(PIN_GC_SEL);
+    gpio_disable_pulls(PIN_GC_CLK);
+    gpio_disable_pulls(PIN_GC_DI);
+    gpio_disable_pulls(PIN_GC_DO);
+
+    cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
+    cmd_reader.sm = pio_claim_unused_sm(pio0, true);
+
+    dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
+    dat_writer.sm = pio_claim_unused_sm(pio0, true);
+
+    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
+    clock_probe.sm = pio_claim_unused_sm(pio0, true);
+
+    cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
+    dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
+    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
+
+    gpio_init(PIN_GC_INT);
+    gpio_init(PIN_MC_CONNECTED);
+    gpio_set_dir(PIN_GC_INT, GPIO_OUT);
+    gpio_set_dir(PIN_MC_CONNECTED, GPIO_OUT);
+
+    gpio_put(PIN_GC_INT, 1);
+    gpio_put(PIN_MC_CONNECTED, 0);
 
 
     dma_wait_config = dma_channel_get_default_config(DMA_WAIT_CHAN);
@@ -82,48 +121,28 @@ static void __time_critical_func(reset_pio)(void) {
         false                   // Start immediately
     );
 
-    reset = 1;
-}
-
-static void __time_critical_func(init_pio)(void) {
-
-    /* Set all pins as floating inputs */
-    gpio_set_dir(PIN_PSX_SEL, 0);
-    gpio_set_dir(PIN_PSX_CLK, 0);
-    gpio_set_dir(PIN_PSX_CMD, 0);
-    gpio_set_dir(PIN_PSX_DAT, 0);
-    gpio_disable_pulls(PIN_PSX_SEL);
-    gpio_disable_pulls(PIN_PSX_CLK);
-    gpio_disable_pulls(PIN_PSX_CMD);
-    gpio_disable_pulls(PIN_PSX_DAT);
-
-    cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
-    cmd_reader.sm = pio_claim_unused_sm(pio0, true);
-
-    dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
-    dat_writer.sm = pio_claim_unused_sm(pio0, true);
-
-    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
-    clock_probe.sm = pio_claim_unused_sm(pio0, true);
-
-    cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
-    dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
-
-    gpio_init(PIN_PSX_ACK);
-    gpio_set_dir(PIN_PSX_ACK, GPIO_OUT);
-    gpio_put(PIN_PSX_ACK, 1);
+    dma_write_config = dma_channel_get_default_config(DMA_WRITE_CHAN);
+    channel_config_set_read_increment(&dma_write_config, false);
+    channel_config_set_write_increment(&dma_write_config, true); // Changed to false to write to same location
+    channel_config_set_transfer_data_size(&dma_write_config, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_write_config, pio_get_dreq(pio0, cmd_reader.sm, false));
+    dma_channel_configure(
+        DMA_WRITE_CHAN,                 // Channel to be configured
+        &dma_write_config,         // The configuration we just created
+        &_,            // Single byte destination address
+        &pio0->rxf[cmd_reader.sm],  // Source address
+        128,                    // Number of transfers
+        false                   // Start immediately
+    );
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
-    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
+    if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         gc_card_active = false;
-//        drain_fifos();
         reset_pio();
-    } else if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
+    } else if (gpio == PIN_GC_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
         gc_card_active = true;
-        gpio_put(PIN_PSX_ACK, 1);
-
+        gpio_put(PIN_GC_INT, 1);
     }
 }
 
@@ -195,13 +214,9 @@ static void __time_critical_func(mc_probe)(void) {
     uint8_t _;
     gc_receiveOrNextCmd(&_);
     gc_mc_respond(0x00); // out byte 3
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(0x00); // out byte 4
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(mc_probe_id[0]); // out byte 5
-    gc_receiveOrNextCmd(&_);
     gc_mc_respond(mc_probe_id[1]); // out byte 6
-    gc_receiveOrNextCmd(&_);
     card_state = 0x01;
 }
 
@@ -211,6 +226,7 @@ static void __time_critical_func(gc_mc_read)(void) {
     uint8_t offset[4] = {};
 
     uint32_t offset_u32 = 0;
+    uint32_t test_offset_u32 = 0;
     uint16_t i = 0;
 
     gc_receiveOrNextCmd(&offset[3]);
@@ -221,37 +237,40 @@ static void __time_critical_func(gc_mc_read)(void) {
     gc_mc_respond(0xFF); // out byte 5
     gc_receiveOrNextCmd(&offset[0]);
 
-    offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
-
-    if (pio_sm_is_rx_fifo_full(pio0, cmd_reader.sm)) {
-        DPRINTF("FIFO full\n");
-    }
     dma_channel_start(DMA_WAIT_CHAN);
+    offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
+    test_offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
+
+    if ((test_offset_u32 >= 0x7FEC8000)
+        && (test_offset_u32 <= 0x7FECF000)) {
+        // Cube expects re-unlock
+        card_state = 0x01;
+        mc_unlock_stage_0(test_offset_u32);
+        return;
+    }
+
 
     // Setup data read
-    gc_mc_data_interface_setup_read_page(offset_u32/512U, true, false);
+    gc_mc_data_interface_setup_read_page(offset_u32/512U, true);
 
-    volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page(offset_u32/512U);
+    volatile gc_mcdi_page_t *page = gc_mc_data_interface_get_page();
     if (page->page_state != PAGE_DATA_AVAILABLE) {
         log(LOG_ERROR, "%s: page %u not available\n", __func__, offset_u32/512U);
         return;
     }
-
     while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
     for (i = 0; i < 0x200; i++) {
         gc_mc_respond(page->data[i]);
     }
 
-    //DPRINTF("R: %08x / %i \n", offset_u32, i);
+    DPRINTF("R: %08x / %i \n", offset_u32, i);
 }
 
 
 static void __time_critical_func(gc_mc_write)(void) {
-    uint8_t offset[4] = {};
     uint8_t data[512] = {};
-    uint16_t i = 0;
+    uint8_t offset[4] = {};
     uint32_t offset_u32 = 0;
-    uint8_t ret = RECEIVE_OK;
     gc_mc_respond(0xFF); // out byte 1
     gc_receiveOrNextCmd(&offset[3]);
     gc_mc_respond(0xFF); // out byte 2
@@ -260,17 +279,24 @@ static void __time_critical_func(gc_mc_write)(void) {
     gc_receiveOrNextCmd(&offset[1]);
     gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[0]);
-    gc_mc_respond(0xFF); // out byte 5
+
+    dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, &data[0], &pio0->rxf[cmd_reader.sm], 128, true);
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
+    DPRINTF("W: %08x / %u\n",offset_u32, 128);
 
-    while (ret != RECEIVE_RESET && i < 512) {
-        ret = gc_receive(&data[i++]);
+    while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
+    gc_mc_data_interface_write_mc(offset_u32, data, 128);
+
+
+    card_state |= 0x06; // Set card state to 0x06 (write done)
+
+    if (interrupt_enable & 0x01) {
+        // Wait 1ms
+        sleep_us(1000);
+
+        gpio_put(PIN_GC_INT, 0);
     }
-    DPRINTF("W: %08x / %u\n",offset_u32, (i-1));
-    gc_mc_data_interface_write_mc(offset_u32, data, (i-1));
-    sleep_us(2);
-    gpio_put(PIN_PSX_ACK, 0);
 }
 
 
@@ -281,11 +307,15 @@ static void __time_critical_func(mc_erase_sector)(void) {
     gc_receiveOrNextCmd(&page[0]);
 
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
-
     gc_mc_data_interface_erase(offset_u32);
     DPRINTF("E: %08x\n", offset_u32);
-    sleep_us(2);
-    gpio_put(PIN_PSX_ACK, 0);
+
+    card_state |= 0x06; // Set card state to 0x06 (write done)
+
+    if (interrupt_enable & 0x01) {
+        sleep_us(1000); // Wait for 200us to ensure the card is ready
+        gpio_put(PIN_GC_INT, 0);
+    }
 }
 
 
@@ -306,7 +336,7 @@ static void __time_critical_func(mc_get_dev_id)(void) {
 static void __time_critical_func(mc_set_game_id)(void) {
     uint8_t id[10] = {};
     for (int i = 0; i < 10; i++) {
-        gc_receiveOrNextCmd(&id[i]);
+        gc_receive(&id[i]);
     }
     gc_mmceman_set_gameid(id);
 }
@@ -320,7 +350,7 @@ static void __time_critical_func(mc_set_game_name)(void) {
         }
     }
     name[64] = 0x00;
-    DPRINTF("NAME: %s\n", name);
+    //DPRINTF("NAME: %s\n", name);
 }
 
 static void __time_critical_func(mc_get_game_name)(void) {
@@ -350,22 +380,23 @@ static void __time_critical_func(mc_mce_cmd)(void) {
         case 0x13:
             mc_set_game_name();
             break;
+
         default:
-            DPRINTF("Unknown command: %02x ", cmd);
+            DPRINTF("MCE: Unknown command: %02x ", cmd);
             break;
     }
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
     card_state = 0x01;
+    uint8_t cmd;
+    uint8_t res;
 
-    DPRINTF("Latency is %u\n", GC_MC_LATENCY_CYCLES);
     while (1) {
+        cmd = 0;
+        res = 0;
 
-        uint8_t cmd = 0;
-        uint8_t res = 0;
-
-        while (!reset) {};
+        while (!reset) {}; // Wait for reset
 
         reset = 0;
 
@@ -382,7 +413,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         switch (cmd) {
             case 0x00:
-                gc_mc_respond(0xFF); // <-- this is second byte of the response already
+                //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 mc_probe();
                 break;
             case 0x52:
@@ -393,14 +424,23 @@ static void __time_critical_func(mc_main_loop)(void) {
                 break;
             case 0x81:
                 gc_receive(&interrupt_enable);
+                if (interrupt_enable & 0x01) {
+                    // Clear interrupt
+                    gpio_put(PIN_GC_INT, 1);
+                }
                 break;
-            case 0x83:
+            case 0x83: // Get card state
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
-                //card_state = 0x41;
                 break;
-            case 0x89:
-                //card_state = 0x41;
+            case 0x85: // Vendor ID, wii only
+                //gc_mc_respond(0xFF); // <-- this is second byte of the response already
+                gc_receiveOrNextCmd(&_);
+                gc_mc_respond(0x01); // out byte 3
+                gc_mc_respond(0x01); // out byte 4
+                break;
+            case 0x89: // Clear card state
+                card_state &= 0x41;
                 break;
             case 0x8B:
                 mc_mce_cmd();
@@ -418,6 +458,10 @@ static void __time_critical_func(mc_main_loop)(void) {
                 DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
+        if (interrupt_enable & 0x01) {
+            // Clear interrupt
+            gpio_put(PIN_GC_INT, 1);
+        }
     }
 }
 
@@ -425,11 +469,15 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
-
         memcard_running = 1;
 
+        while (!gc_cardman_is_idle());
+        mc_generateId();
+
         reset_pio();
+        gpio_put(PIN_MC_CONNECTED, 1);
         mc_main_loop();
+        gpio_put(PIN_MC_CONNECTED, 0);
         log(LOG_TRACE, "%s exit\n", __func__);
     }
 }
@@ -438,6 +486,7 @@ static gpio_irq_callback_t callbacks[NUM_CORES];
 
 static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t events) {
     check_gpio_param(gpio);
+
     iobank0_hw->intr[gpio / 8] = events << (4 * (gpio % 8));
 }
 
@@ -484,17 +533,17 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 void gc_memory_card_main(void) {
     multicore_lockout_victim_init();
     init_pio();
-    gpio_set_dir(PIN_PSX_ACK, true);
-    gpio_put(PIN_PSX_ACK, 1);
+    gpio_set_dir(PIN_GC_INT, true);
+    gpio_put(PIN_GC_INT, 1);
 
     gc_us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");
 
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
+    my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
+    //my_gpio_set_irq_enabled_with_callback(PIN_GC_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
 
-    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
-    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(PIN_GC_DO, GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(PIN_GC_DO, GPIO_DRIVE_STRENGTH_12MA);
 
     mc_main();
 }
@@ -523,7 +572,6 @@ void gc_memory_card_enter(void) {
 
     mc_enter_request = 1;
     while (!mc_enter_response) {}
-    mc_generateId();
     mc_enter_request = mc_enter_response = 0;
 }
 

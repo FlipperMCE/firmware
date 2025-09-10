@@ -13,7 +13,9 @@
 #include <src/core/lv_obj_tree.h>
 #include <src/hal/lv_hal_disp.h>
 #include <src/misc/lv_anim.h>
+#include <src/misc/lv_area.h>
 #include <src/misc/lv_style.h>
+#include <src/misc/lv_txt.h>
 #include <src/widgets/lv_label.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -30,20 +32,24 @@
 #include "ui_theme_mono.h"
 #include "version/version.h"
 
+#include "splash.h"
+
 #if LOG_LEVEL_GUI == 0
     #define log(x...)
 #else
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
+static uint64_t time_start;
+
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_autoboot,
-    *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip;
+static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_card_restore, *lbl_gc_encoding,
+    *lbl_gc_cardsize, *lbl_gc_game_id, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_scrn_flip, *lbl_show_info;
 
 static struct {
     uint8_t value;
@@ -72,7 +78,6 @@ static int have_oled;
 static bool waiting_card;
 static int current_progress;
 static bool refresh_gui;
-static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
@@ -141,10 +146,11 @@ static lv_obj_t *ui_label_create_grow_scroll(lv_obj_t *parent, const char *text)
     return label;
 }
 
-static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text) {
+static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text, bool inverted) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_obj_set_align(lbl, LV_ALIGN_TOP_MID);
-    lv_obj_add_style(lbl, &style_inv, 0);
+    if (inverted)
+        lv_obj_add_style(lbl, &style_inv, 0);
     lv_obj_set_width(lbl, DISPLAY_WIDTH);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(lbl, text);
@@ -286,9 +292,11 @@ static void ui_set_display_contrast(uint8_t display_contrast) {
 
 static void ui_set_cardsize(void) {
     for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
+
         uint8_t value = cardsize_options[i].value;
-        char text[12] = {};
-        snprintf(text, ARRAY_SIZE(text), "%c %u MBits", settings_get_gc_cardsize() == value ? '>' : ' ', value);
+        uint32_t blocks = (uint32_t)((value * 1024) / 64) - 5U;
+        char text[13] = {};
+        snprintf(text, ARRAY_SIZE(text), "%c %lu Blocks", settings_get_gc_cardsize() == value ? '>' : ' ', blocks);
         lv_label_set_text(cardsize_options[i].selection_lbl, text);
     }
 }
@@ -403,12 +411,12 @@ void evt_menu_page(lv_event_t *event) {
 static void update_main_header(void) {
     lv_label_set_text(main_header, "GC Memory Card");
 }
-/*
+
 static void evt_go_back(lv_event_t *event) {
     ui_menu_go_back(menu);
     lv_event_stop_bubbling(event);
 }
-*/
+
 static void evt_screen_flip(lv_event_t *event) {
     bool current = settings_get_display_flipped();
     settings_set_display_flipped(!current);
@@ -417,12 +425,28 @@ static void evt_screen_flip(lv_event_t *event) {
     lv_label_set_text(lbl_scrn_flip, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
+/**
+static void evt_do_splash_install(lv_event_t *event) {
+    if (splash_load_sd()) {
+        splash_install();
+    }
+    lv_event_stop_bubbling(event);
+}
+*/
+
+static void evt_show_info(lv_event_t *event) {
+    bool current = settings_get_show_info();
+    settings_set_show_info(!current);
+    lv_label_set_text(lbl_show_info, !current ? "Yes" : "No");
+    refresh_gui = true;
+    lv_event_stop_bubbling(event);
+}
 
 
-static void evt_gc_autoboot(lv_event_t *event) {
-    bool current = settings_get_gc_autoboot();
-    settings_set_gc_autoboot(!current);
-    lv_label_set_text(lbl_gc_autoboot, !current ? "Yes" : "No");
+static void evt_gc_card_restore(lv_event_t *event) {
+    bool current = settings_get_gc_card_restore();
+    settings_set_gc_card_restore(!current);
+    lv_label_set_text(lbl_gc_card_restore, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
 
@@ -433,32 +457,41 @@ static void evt_gc_gameid(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_gc_encoding(lv_event_t *event) {
+    bool current = settings_get_gc_encoding();
+    settings_set_gc_encoding(!current);
+    lv_label_set_text(lbl_gc_encoding, !current ? "Japan" : "World");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_set_gc_cardsize(lv_event_t *event) {
-    uint8_t cardsize = (intptr_t)event->user_data;
+    uint8_t cardsize = (uint8_t)event->user_data;
+    uint32_t blocks = (uint32_t)((cardsize * 1024) / 64) - 5U;
+
     settings_set_gc_cardsize(cardsize);
 
     char text[12] = {};
-    snprintf(text, ARRAY_SIZE(text), "%u MBits>", cardsize);
+    snprintf(text, ARRAY_SIZE(text), "%lu >", blocks);
     lv_label_set_text(lbl_gc_cardsize, text);
     ui_set_cardsize();
     ui_menu_go_back(menu);
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
-    uint8_t display_timeout = (intptr_t)event->user_data;
+    uint8_t display_timeout = (uint8_t)event->user_data;
     settings_set_display_timeout(display_timeout);
     ui_set_display_timeout(display_timeout);
 }
 
 static void evt_set_display_contrast(lv_event_t *event) {
-    uint8_t display_contrast = (intptr_t)event->user_data;
+    uint8_t display_contrast = (uint8_t)event->user_data;
     settings_set_display_contrast(display_contrast);
     oled_set_contrast(display_contrast);
     ui_set_display_contrast(display_contrast);
 }
 
 static void evt_set_display_vcomh(lv_event_t *event) {
-    uint8_t display_vcomh = (intptr_t)event->user_data;
+    uint8_t display_vcomh = (uint8_t)event->user_data;
     settings_set_display_vcomh(display_vcomh);
     oled_set_vcomh(display_vcomh);
     ui_set_display_vcomh(display_vcomh);
@@ -470,8 +503,12 @@ static void create_main_screen(void) {
     /* Main screen listing current memcard, status, etc */
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-    main_header = ui_header_create(scr_main, "");
+    main_header = ui_header_create(scr_main, "", true);
     update_main_header();
+
+    scr_main_info_lbl = ui_label_create_at(scr_main, 0, 12, "");
+    lv_obj_set_style_text_align(scr_main_info_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_align(scr_main_info_lbl, LV_ALIGN_TOP_MID);
 
     ui_label_create_at(scr_main, 0, 24, "Card");
 
@@ -538,7 +575,7 @@ static void create_main_screen(void) {
 static void create_cardswitch_screen(void) {
     scr_card_switch = ui_scr_create();
 
-    ui_header_create(scr_card_switch, "Loading card");
+    ui_header_create(scr_card_switch, "Loading card", true);
 
     static lv_style_t style_progress;
     lv_style_init(&style_progress);
@@ -603,7 +640,19 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
+/**
+    lv_obj_t *splash_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(splash_page, "Deploy Splash", false);
+    {
+        cont = ui_menu_cont_create(splash_page);
+        ui_label_create(cont, "Done!");
+        cont = ui_menu_cont_create(splash_page);
 
+        cont = ui_menu_cont_create_nav(splash_page);
+        ui_label_create(cont, "Back");
+        lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
+    }
+*/
     /* display / vcomh submenu */
     lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
@@ -627,7 +676,8 @@ static void create_menu_screen(void) {
     }
 
     /* display config */
-    lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
+    lv_obj_t *display_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(display_page, "Display", false);
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
@@ -651,13 +701,17 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Flip");
         lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Show Info");
+        lbl_show_info = ui_label_create(cont, settings_get_show_info() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_show_info, LV_EVENT_CLICKED, NULL);
     }
 
     /* gc */
-    lv_obj_t *gc_page = ui_menu_subpage_create(menu, "Card Settings");
+    lv_obj_t *gc_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(gc_page, "Card Settings", false);
     {
-
-#ifdef FEAT_PS2_CARDSIZE
         /* cardsize submenu */
         lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
@@ -669,20 +723,20 @@ static void create_menu_screen(void) {
 
             for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
                 uint8_t value = cardsize_options[i].value;
-                char text[12] = {};
-                snprintf(text, ARRAY_SIZE(text), "%c %u MBits", settings_get_gc_cardsize() == value ? '>' : ' ', value);
+                uint32_t blocks = (uint32_t)((value * 1024) / 64) - 5U;
+                char text[14] = {};
+                snprintf(text, ARRAY_SIZE(text), "%c %lu Blocks", settings_get_gc_cardsize() == value ? '>' : ' ', blocks);
 
                 cont = ui_menu_cont_create_nav(cardsize_page);
                 cardsize_options[i].selection_lbl = ui_label_create_grow(cont, text);
                 lv_obj_add_event_cb(cont, evt_set_gc_cardsize, LV_EVENT_CLICKED, (void *)(intptr_t)value);
             }
         }
-#endif
 
         cont = ui_menu_cont_create_nav(gc_page);
-        ui_label_create_grow_scroll(cont, "Autoboot");
-        lbl_gc_autoboot = ui_label_create(cont, settings_get_gc_autoboot() ? " Yes" : " No");
-        lv_obj_add_event_cb(cont, evt_gc_autoboot, LV_EVENT_CLICKED, NULL);
+        ui_label_create_grow_scroll(cont, "Card Restore");
+        lbl_gc_card_restore = ui_label_create(cont, settings_get_gc_card_restore() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_gc_card_restore, LV_EVENT_CLICKED, NULL);
 
         cont = ui_menu_cont_create_nav(gc_page);
         ui_label_create_grow_scroll(cont, "Game ID");
@@ -690,25 +744,32 @@ static void create_menu_screen(void) {
         lv_obj_add_event_cb(cont, evt_gc_gameid, LV_EVENT_CLICKED, NULL);
 
         {
-            char text[11] = {};
-            snprintf(text, ARRAY_SIZE(text), "%u MBits>", settings_get_gc_cardsize());
+            char text[12] = {};
+            uint32_t blocks = (uint32_t)((settings_get_gc_cardsize() * 1024) / 64) - 5U;
+            snprintf(text, ARRAY_SIZE(text), "%lu >", blocks);
             cont = ui_menu_cont_create_nav(gc_page);
             ui_label_create_grow(cont, "Size");
             lbl_gc_cardsize = ui_label_create(cont, text);
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
         }
+
+        cont = ui_menu_cont_create_nav(gc_page);
+        ui_label_create_grow_scroll(cont, "Encoding");
+        lbl_gc_encoding = ui_label_create(cont, settings_get_gc_encoding() ? " Japan" : " World");
+        lv_obj_add_event_cb(cont, evt_gc_encoding, LV_EVENT_CLICKED, NULL);
     }
 
     /* Info submenu */
-    lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
+    lv_obj_t *info_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(info_page, "Info", false);
     {
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Version");
-        ui_label_create(cont, sd2psx_version);
+        ui_label_create(cont, flippermce_version);
 
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Commit");
-        ui_label_create(cont, sd2psx_commit);
+        ui_label_create(cont, flippermce_commit);
 
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Debug");
@@ -721,6 +782,7 @@ static void create_menu_screen(void) {
 
     /* Main menu */
     main_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(main_page, "Main Menu", false);
     {
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Card Settings");
@@ -741,6 +803,29 @@ static void create_menu_screen(void) {
     ui_menu_set_page(menu, main_page);
 }
 
+
+
+static void create_splash(void) {
+    // Create the splash screen object
+    scr_splash = ui_scr_create();
+
+    // Create an lv_img_dsc_t for the buffer
+    static const lv_img_dsc_t splash_img_dsc = {
+        .header.always_zero = 0,
+        .header.w = 128,
+        .header.h = 64,
+        .data_size =  sizeof(splash_img),
+        .header.cf = LV_IMG_CF_INDEXED_1BIT,
+        .data = splash_img,
+    };
+
+    // Add the image to the splash screen
+    lv_obj_t *img = lv_img_create(scr_splash);
+    lv_img_set_src(img, &splash_img_dsc);
+
+    lv_obj_center(img);
+}
+
 static void create_ui(void) {
     lv_style_init(&style_inv);
     lv_style_set_bg_opa(&style_inv, LV_OPA_COVER);
@@ -755,6 +840,7 @@ static void create_ui(void) {
     create_main_screen();
     create_menu_screen();
     create_cardswitch_screen();
+    create_splash();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -828,9 +914,10 @@ void gui_init(void) {
         lv_disp_set_theme(disp, th);
 
         create_ui();
+        splash_init();
+        time_start = time_us_64();
 
         refresh_gui = false;
-        installing_exploit = false;
         waiting_card = false;
     }
 }
@@ -861,7 +948,12 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (waiting_card) {
+    if (time_us_64() < time_start + 2 * 1000 * 1000) {
+        // Wait for 2 seconds before showing the main screen
+        if (lv_scr_act() != scr_splash) {
+            UI_GOTO_SCREEN(scr_splash);
+        }
+    } else if (waiting_card) {
         update_bar();
 
         oled_update_last_action_time();
@@ -871,6 +963,10 @@ void gui_task(void) {
         static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
+
+        if (lv_scr_act() == scr_splash) {
+            UI_GOTO_SCREEN(scr_main);
+        }
 
         lv_label_set_text(main_header, "GC Memory Card");
 
@@ -883,7 +979,6 @@ void gui_task(void) {
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
-                case GC_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
                 case GC_CM_STATE_NAMED:
                 case GC_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
                 case GC_CM_STATE_NORMAL:
@@ -897,7 +992,7 @@ void gui_task(void) {
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
             card_config_read_channel_name(folder_name,
-                                            cardman_state == GC_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                            folder_name,
                                             card_channel_s,
                                             card_name,
                                             sizeof(card_name));
@@ -905,7 +1000,7 @@ void gui_task(void) {
             if (!card_name[0] && cardman_state == GC_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }
-            if (!card_name[0] && cardman_state == GC_CM_STATE_NAMED) {
+            if (!card_name[0] || cardman_state == GC_CM_STATE_NAMED) {
                 game_db_get_game_name(folder_name, card_name);
             }
 
@@ -913,6 +1008,19 @@ void gui_task(void) {
                 lv_label_set_text(src_main_title_lbl, card_name);
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
+            }
+            {
+                char info_text[32] = "";
+                if (settings_get_show_info()) {
+                    uint32_t blocks = (gc_cardman_get_card_size() / (8 * 1024)) - 5U;
+                    snprintf(info_text, sizeof(info_text), "%lu Blocks - %c",
+                             blocks,
+                             gc_cardman_get_card_enc() ? 'J' : 'W');
+                } else {
+
+                }
+                lv_label_set_text(scr_main_info_lbl, info_text);
+
             }
         }
 

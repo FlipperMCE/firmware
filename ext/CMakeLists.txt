@@ -54,11 +54,7 @@ target_link_libraries(sd_fat
 
 target_link_libraries(sd_fat PRIVATE flippermce_common)
 
-if (WITH_PSRAM)
-    target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
-else()
-    target_compile_definitions(sd_fat PRIVATE NUM_FILES=8)
-endif()
+target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
 
 
 add_library(ssd1306 STATIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306/ssd1306.c)
@@ -67,10 +63,6 @@ target_include_directories(ssd1306 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306)
 
 set(LV_CONF_PATH ${PROJECT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lvgl EXCLUDE_FROM_ALL)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/mcfat)
-
-target_compile_definitions(mcfat PRIVATE MAX_CACHEENTRY=0x1)
-target_compile_definitions(mcfat PRIVATE MAX_FDHANDLES=0x1)
 
 add_library(inih STATIC ${CMAKE_CURRENT_SOURCE_DIR}/inih/ini.c)
 target_link_libraries(inih PRIVATE sd_fat)

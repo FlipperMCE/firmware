@@ -5,11 +5,21 @@ replacer = r'\((.*)\)'
 class GameId:
     name = ""
     id = ""
+    region = ""
     def __init__(self, name, id):
         self.name = name
         self.id = id
+        parts = id.strip().split("-")
+        if parts and len(parts) > 2:
+            self.id = parts[2]
+            if len(parts[-1]) < 3:
+                self.region = parts[-2]
+            else:
+                self.region = parts[-1]
+            self.region = re.sub(replacer, "", self.region).strip()
+
     def __str__(self):
-        return "Id " +  self.id + " Name " + self.name
+        return "Id " +  self.id + " Name " + self.name + " Region " + self.region
 
     def __lt__(self, o):
         return self.name < o.name
@@ -31,9 +41,9 @@ def parseGameEntry(element):
     game_serials = []
     if serials and serials[0].text:
         for s in serials[0].text.split(","):
-            serial = s.strip().split("-")
-            if serial and len(serial) > 2:
-                game_serials.append(serial[2])
+            if len(s.strip()) > 0:
+                game_serials.append(s.strip())
+
 
     return (name, game_serials)
 
@@ -49,7 +59,8 @@ def createGameList(name_to_serials):
     for game in gamenames_full:
         for serial in name_to_serials[game]:
             gameName = re.sub(replacer, "", game).strip()
-            gameList.append(GameId(gameName, serial))
+            game_item = GameId(gameName, serial)
+            gameList.append(game_item)
     return gameList
 
 import xml.etree.ElementTree as ET
@@ -66,10 +77,14 @@ def createDbFile(rootdir, outputdir):
 
     name_to_serials = {}
 
+    regions = []
+
     # Create Mapping from serial to full game name
     for element in root:
         if element.tag == 'game':
             name, serials = parseGameEntry(element)
+            if len(serials) < 1:
+                continue
             name_to_serials[name] = serials
 
 
@@ -92,10 +107,9 @@ def createDbFile(rootdir, outputdir):
 
     redump_games.sort()
     term = 0
-    id_length = 4
 
     game_ids_offset = 0
-    game_names_base_offset = game_ids_offset + (len(games_sorted) * 8) + 8
+    game_names_base_offset = 0 + (len(games_sorted) * 12) + 12
 
     offset = game_names_base_offset
     game_name_to_offset = {}
@@ -107,7 +121,6 @@ def createDbFile(rootdir, outputdir):
             game_name_to_offset[gamename] = offset
             offset = offset + len(gamename) + 1
 
-    print("longest id length {}".format(id_length))
     with open("{}/gamedbgc.dat".format(outputdir), "wb") as out:
 
         # Next: write game entries for each index in the format:
@@ -118,9 +131,11 @@ def createDbFile(rootdir, outputdir):
             game = games_sorted[id]
             out.write(game.id.encode('ascii'))
             out.write(game_name_to_offset[game.name].to_bytes(4, 'big'))
+            out.write(game.region.encode('ascii'))
+            out.write(int(0).to_bytes(1, 'big'))
            # print("Game Name: {} Offset: {}".format(game.name, game_name_to_offset[game.name]))
 
-        out.write(term.to_bytes(8, 'big'))
+        out.write(term.to_bytes(12, 'big'))
         # Last: write null terminated game names
         for game in game_name_to_offset:
             out.write(game.encode('ascii'))

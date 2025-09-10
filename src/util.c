@@ -53,8 +53,7 @@ bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_n
         }
 
         // Skip boot card, normal cards, and cards with names longer than 15 characters
-        if (strcmp(filename, "BOOT") == 0 ||
-            (strncmp(filename, "Card", 4) == 0 && str_is_integer(filename + 4)) ||
+        if ((strncmp(filename, "Card", 4) == 0 && str_is_integer(filename + 4)) ||
             (strlen(filename) >= MAX_GAME_ID_LENGTH)) {
             it_fd = sd_iterate_dir(dir_fd, it_fd);
             continue;

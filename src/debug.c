@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include "led.h"
 
 #if WITH_GUI
 #include "oled.h"
@@ -66,9 +65,6 @@ void fatal(const char *format, ...) {
         oled_draw_text(buf);
         oled_show();
     }
-#endif
-#if WITH_LED
-    led_fatal();
 #endif
 
     while (1) {

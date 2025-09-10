@@ -29,8 +29,7 @@ typedef struct {
 } parse_card_config_t;
 
 typedef struct {
-    const char *game_id;
-    const char *mode;
+    char game_id[4];
     char *card_folder;
     size_t card_folder_max_len;
 } parse_custom_card_folder_t;
@@ -39,7 +38,7 @@ static int parse_custom_card_folder(void *user, const char *section, const char 
     parse_custom_card_folder_t *ctx = user;
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-    if (MATCH(ctx->mode, ctx->game_id)) {
+    if (MATCH("GC", ctx->game_id)) {
         if (strlen(value) <= ctx->card_folder_max_len) {
             strlcpy(ctx->card_folder, value, ctx->card_folder_max_len);
         }
@@ -60,10 +59,8 @@ static int parse_card_configuration(void *user, const char *section, const char 
             strcpy(ctx->channel_name, value);
         }
     } else if (MATCH("Settings", "CardSize")) {
-        int size = atoi(value);
+        uint8_t size = (uint8_t)atoi(value);
         switch (size) {
-            case 1:
-            case 2:
             case 4:
             case 8:
             case 16:
@@ -75,7 +72,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
                 break;
         }
     } else if (MATCH("Settings", "MaxChannels")) {
-        int max_channels = atoi(value);
+        uint8_t max_channels = (uint8_t)atoi(value);
         if (max_channels > 0 && max_channels <= UINT8_MAX) {
             ctx->max_channels = max_channels;
         }
@@ -157,17 +154,15 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
 
 
 void card_config_get_card_folder(const char* game_id, char* card_folder, size_t card_folder_max_len) {
-    char mode[6];
+
     parse_custom_card_folder_t ctx = {
-        .game_id = game_id,
-        .mode = mode,
         .card_folder = card_folder,
         .card_folder_max_len = card_folder_max_len
     };
+    memcpy(ctx.game_id, game_id, 4);
 
-    snprintf(mode, sizeof(mode), "GC");
     int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
-    log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id, ctx.mode);
+    log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id);
 
     if (fd >= 0) {
         ini_parse_sd_file(fd, parse_custom_card_folder, &ctx);

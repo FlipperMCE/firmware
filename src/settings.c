@@ -1,5 +1,7 @@
 #include "settings.h"
 
+#include <gc/gc_cardman.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,13 +15,13 @@
 /* NOTE: for any change to the layout/size of this structure (that gets shipped to users),
    ensure to increase the version magic below -- this will trigger setting reset on next boot */
 typedef struct {
+    char gc_last_folder_name[32];
     uint32_t version_magic;
     uint16_t gc_card;
-    uint8_t pad_0[2];
+    uint8_t last_state;
     uint8_t gc_channel;
-    uint8_t gc_boot_channel;
-    uint8_t gc_flags; // TODO: single bit options: freepsxboot, pocketstation, freepsxboot slot
-    // TODO: more gc settings: model for freepsxboot
+    uint8_t pad[2];
+    uint8_t gc_flags; // TODO: single bit options
     uint8_t sys_flags; // TODO: single bit options: whether gc or gc mode, etc
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
     uint8_t display_contrast; // display - contrast, 0-255
@@ -35,12 +37,14 @@ typedef struct {
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC             (0xAACE0000)
-#define SETTINGS_GC_FLAGS_AUTOBOOT         (0b0000001)
+#define SETTINGS_VERSION_MAGIC             (0xAACF0000)
+#define SETTINGS_GC_FLAGS_CARD_RESTORE     (0b0000001)
 #define SETTINGS_GC_FLAGS_GAME_ID          (0b0000010)
+#define SETTINGS_GC_FLAGS_ENC              (0b0000100)  // Card Encoding Default is Japanese
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY (0b0000010)
+#define SETTINGS_SYS_FLAGS_SHOW_INFO       (0b0000100)
 
-_Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
+_Static_assert(sizeof(settings_t) == 48, "unexpected padding in the settings structure");
 
 static settings_t settings;
 static serialized_settings_t serialized_settings;
@@ -54,12 +58,15 @@ static int parse_card_configuration(void *user, const char *section, const char 
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     #define DIFFERS(v, s) ((strcmp(v, "ON") == 0) != s)
-    if (MATCH("GC", "Autoboot")
-        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT) > 0))) {
-        _s->gc_flags ^= SETTINGS_GC_FLAGS_AUTOBOOT;
+    if (MATCH("GC", "CardRestore")
+        && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0))) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_CARD_RESTORE;
     } else if (MATCH("GC", "GameID")
         && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0))) {
         _s->gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    } else if (MATCH("GC", "Encoding")
+        && (strcmp(value, "JAP") != 0) != ((_s->gc_flags & SETTINGS_GC_FLAGS_ENC) > 0)) {
+        _s->gc_flags ^= SETTINGS_GC_FLAGS_ENC;
     } else if (MATCH("GC", "CardSize")) {
         int size = atoi(value);
         switch (size) {
@@ -76,6 +83,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
     } else if (MATCH("General", "FlippedScreen")
         && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0))) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    } else if (MATCH("General", "ShowInfo")
+        && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0))) {
+        _s->sys_flags ^= SETTINGS_SYS_FLAGS_SHOW_INFO;
     }
     #undef MATCH
     return 1;
@@ -99,7 +109,6 @@ static void settings_deserialize(void) {
             settings.sys_flags       = newSettings.sys_flags;
             settings.gc_flags       = newSettings.gc_flags;
             settings.gc_cardsize    = newSettings.gc_cardsize;
-            settings.gc_flags       = newSettings.gc_flags;
 
             wear_leveling_write(0, &settings, sizeof(settings));
         }
@@ -111,8 +120,7 @@ static void settings_serialize(void) {
     // Only serialize if required
     if (serialized_settings.gc_cardsize == settings.gc_cardsize &&
         serialized_settings.gc_flags == settings.gc_flags &&
-        serialized_settings.sys_flags == settings.sys_flags &&
-        serialized_settings.gc_flags == settings.gc_flags) {
+        serialized_settings.sys_flags == settings.sys_flags) {
         return;
     }
 
@@ -127,11 +135,15 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "ShowInfo=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[GC]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
+        written = snprintf(line_buffer, 256, "CardRestore=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "JAP" : "WORLD");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
         sd_write(fd, line_buffer, written);
@@ -141,7 +153,6 @@ static void settings_serialize(void) {
     serialized_settings.sys_flags       = settings.sys_flags;
     serialized_settings.gc_flags       = settings.gc_flags;
     serialized_settings.gc_cardsize    = settings.gc_cardsize;
-    serialized_settings.gc_flags       = settings.gc_flags;
 }
 
 static void settings_reset(void) {
@@ -150,8 +161,9 @@ static void settings_reset(void) {
     settings.display_timeout = 0; // off
     settings.display_contrast = 255; // 100%
     settings.display_vcomh = 0x30; // 0.83 x VCC
-    settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_AUTOBOOT;
+    settings.gc_flags = SETTINGS_GC_FLAGS_GAME_ID | SETTINGS_GC_FLAGS_CARD_RESTORE;
     settings.gc_cardsize = 64;
+    settings.last_state = GC_CM_STATE_NORMAL;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -182,7 +194,6 @@ void settings_init(void) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
     }
-
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
@@ -202,16 +213,21 @@ int settings_get_gc_card(void) {
 }
 
 int settings_get_gc_channel(void) {
-    if (settings.gc_channel < CHAN_MIN || settings.gc_channel > CHAN_MAX)
+    if (settings.gc_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.gc_channel;
 }
 
-int settings_get_gc_boot_channel(void) {
-    if (settings.gc_boot_channel < CHAN_MIN || settings.gc_boot_channel > CHAN_MAX)
-        return CHAN_MIN;
-    return settings.gc_boot_channel;
+void settings_get_gc_last_card(uint8_t *state, int *card, int *chan, char* folder_name) {
+    if (state) *state = settings.last_state;
+    if (card) *card = settings_get_gc_card();
+    if (chan) *chan = settings_get_gc_channel();
+    if ((folder_name) && (*state != (uint8_t)GC_CM_STATE_NORMAL))
+        strlcpy(folder_name, settings.gc_last_folder_name, sizeof(settings.gc_last_folder_name));
+    else
+        memset(folder_name, 0, sizeof(settings.gc_last_folder_name));
 }
+
 
 uint8_t settings_get_gc_cardsize(void) {
     return settings.gc_cardsize;
@@ -231,11 +247,16 @@ void settings_set_gc_channel(int chan) {
     }
 }
 
-void settings_set_gc_boot_channel(int chan) {
-    if (chan != settings.gc_boot_channel) {
-        settings.gc_boot_channel = chan;
-        SETTINGS_UPDATE_FIELD(gc_boot_channel);
-    }
+void settings_set_gc_last_card(uint8_t state, int card, int chan, char* folder_name) {
+    settings.last_state = state;
+    settings.gc_card = (uint16_t)card;
+    settings.gc_channel = (uint8_t)chan;
+    memset(settings.gc_last_folder_name, 0, sizeof(settings.gc_last_folder_name));
+    strlcpy(settings.gc_last_folder_name, folder_name, sizeof(settings.gc_last_folder_name));
+    SETTINGS_UPDATE_FIELD(last_state);
+    SETTINGS_UPDATE_FIELD(gc_card);
+    SETTINGS_UPDATE_FIELD(gc_channel);
+    SETTINGS_UPDATE_FIELD(gc_last_folder_name);
 }
 
 void settings_set_gc_cardsize(uint8_t size) {
@@ -245,13 +266,13 @@ void settings_set_gc_cardsize(uint8_t size) {
     }
 }
 
-bool settings_get_gc_autoboot(void) {
-    return (settings.gc_flags & SETTINGS_GC_FLAGS_AUTOBOOT);
+bool settings_get_gc_card_restore(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE);
 }
 
-void settings_set_gc_autoboot(bool autoboot) {
-    if (autoboot != settings_get_gc_autoboot())
-        settings.gc_flags ^= SETTINGS_GC_FLAGS_AUTOBOOT;
+void settings_set_gc_card_restore(bool card_restore) {
+    if (card_restore != settings_get_gc_card_restore())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_CARD_RESTORE;
     SETTINGS_UPDATE_FIELD(gc_flags);
 }
 
@@ -262,6 +283,16 @@ bool settings_get_gc_game_id(void) {
 void settings_set_gc_game_id(bool enabled) {
     if (enabled != settings_get_gc_game_id())
         settings.gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
+    SETTINGS_UPDATE_FIELD(gc_flags);
+}
+
+bool settings_get_gc_encoding(void) {
+    return (settings.gc_flags & SETTINGS_GC_FLAGS_ENC);
+}
+
+void settings_set_gc_encoding(bool enabled) {
+    if (enabled != settings_get_gc_encoding())
+        settings.gc_flags ^= SETTINGS_GC_FLAGS_ENC;
     SETTINGS_UPDATE_FIELD(gc_flags);
 }
 
@@ -279,6 +310,10 @@ uint8_t settings_get_display_vcomh() {
 
 bool settings_get_display_flipped() {
     return (settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY);
+}
+
+bool settings_get_show_info() {
+    return (settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO);
 }
 
 void settings_set_display_timeout(uint8_t display_timeout) {
@@ -299,5 +334,11 @@ void settings_set_display_vcomh(uint8_t display_vcomh) {
 void settings_set_display_flipped(bool flipped) {
     if (flipped != settings_get_display_flipped())
         settings.sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    SETTINGS_UPDATE_FIELD(sys_flags);
+}
+
+void settings_set_show_info(bool show) {
+    if (show != settings_get_show_info())
+        settings.sys_flags ^= SETTINGS_SYS_FLAGS_SHOW_INFO;
     SETTINGS_UPDATE_FIELD(sys_flags);
 }

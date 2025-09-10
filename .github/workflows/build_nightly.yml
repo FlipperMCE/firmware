@@ -35,19 +35,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-         submodules: 'recursive'
-         fetch-depth: '0'
+         filter: blob:none
     - run: |
+        git submodule update --init --recursive --filter=blob:none
         git fetch origin --tags --force
         TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
         if [ $TAG ]
         then
-          echo "SD2PSX_VERSION=${TAG}" >> $GITHUB_ENV
-          echo "SD2PSX_RLS_TAG=latest" >> $GITHUB_ENV
+          echo "FLIPPERMCE_VERSION=${TAG}" >> $GITHUB_ENV
+          echo "FLIPPERMCE_RLS_TAG=latest" >> $GITHUB_ENV
           echo "${TAG}"
         else
-          echo "SD2PSX_VERSION=nightly-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "SD2PSX_RLS_TAG=nightly" >> $GITHUB_ENV
+          echo "FLIPPERMCE_VERSION=nightly-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "FLIPPERMCE_RLS_TAG=nightly" >> $GITHUB_ENV
           echo "nightly"
         fi
 
@@ -80,8 +80,8 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         prerelease: true
-        automatic_release_tag: "nightly"
-        title: "${{ env.SD2PSX_VERSION }}"
+        automatic_release_tag: "nightly-${{ github.run_number }}"
+        title: "${{ env.FLIPPERMCE_VERSION }}"
         files: |
           */*.uf2
 
@@ -91,6 +91,6 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         prerelease: "${{ contains(github.ref, '-rc') || contains(github.ref, '-beta')}}"
-        title: "${{ env.SD2PSX_VERSION }}"
+        title: "${{ env.FLIPPERMCE_VERSION }}"
         files: |
           */*.uf2

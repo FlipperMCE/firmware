@@ -19,7 +19,7 @@
 /** Others write permission */
 #define FIO_S_IWOTH 0x0002
 
-typedef struct ps2_fileio_stat_t
+typedef struct gc_fileio_stat_t
 {
     unsigned int mode;
     unsigned int attr;
@@ -28,7 +28,7 @@ typedef struct ps2_fileio_stat_t
     unsigned char atime[8];
     unsigned char mtime[8];
     unsigned int hisize;
-} ps2_fileio_stat_t;
+} gc_fileio_stat_t;
 
 typedef struct sd_file_stat_t {
     size_t size;
@@ -58,7 +58,7 @@ int sd_exists(const char *path);
 int sd_remove(const char* path);
 int sd_rmdir(const char* path);
 
-int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat);
+int sd_get_stat(int fd, gc_fileio_stat_t* const ps2_fileio_stat);
 
 int sd_iterate_dir(int dir, int it);
 size_t sd_get_name(int fd, char* name, size_t size);

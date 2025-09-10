@@ -1,6 +1,7 @@
+#include <hardware/gpio.h>
 #include <stdio.h>
 #include "hardware/watchdog.h"
-#include "led.h"
+
 #include "mmceman/gc_mmceman.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
@@ -20,9 +21,7 @@
 #include "sd.h"
 #include "settings.h"
 #include "version/version.h"
-#if WITH_PSRAM
 #include "psram/psram.h"
-#endif
 
 #include "card_emu/gc_memory_card.h"
 //#include "mmceman/gc_mmceman.h"
@@ -67,9 +66,9 @@ static void debug_task(void) {
         QPRINTF("Got %c Input\n", charin);
 
         char in[3] = {0};
-        in[0] = charin;
-        in[1] = getchar_timeout_us(1000*1000*3);
-        in[2] = getchar_timeout_us(1000*1000*3);
+        in[0] = (char)charin;
+        in[1] = (char)getchar_timeout_us(1000*1000*3);
+        in[2] = (char)getchar_timeout_us(1000*1000*3);
         if (in[0] == 'b') {
             if ((in[1] == 'l') && (in[2] == 'r')) {
                 QPRINTF("Resetting to Bootloader");
@@ -106,15 +105,15 @@ int main() {
 
     printf("prepare...\n");
 
-    int mhz = 240;
+    uint32_t mhz = 240;
 
-    set_sys_clock_khz(mhz * 1000, true);
+    set_sys_clock_khz(mhz * 1000U, true);
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
 #if DEBUG_USB_UART
     stdio_usb_init();
 #else
-    stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
+    //stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 #endif
 
     /* set up core1 as high priority bus access */
@@ -122,8 +121,8 @@ int main() {
     while (!bus_ctrl_hw->priority_ack) {}
 
     printf("\n\n\nStarted! Clock %d; bus priority 0x%X\n", (int)clock_get_hz(clk_sys), (unsigned)bus_ctrl_hw->priority);
-    printf("SD2PSX Version %s\n", sd2psx_version);
-    printf("SD2PSX HW Variant: %s\n", sd2psx_variant);
+    printf("FlipperMCE Version %s\n", flippermce_version);
+    printf("FlipperMCE HW Variant: %s\n", flippermce_variant);
 
     settings_init();
 
@@ -132,9 +131,6 @@ int main() {
     game_db_init();
 #endif
 
-#if WITH_LED
-    led_init();
-#endif
 
     while (1) {
         gc_init();

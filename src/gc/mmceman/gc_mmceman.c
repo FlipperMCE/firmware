@@ -1,5 +1,6 @@
 #include "gc_mmceman.h"
 
+#include <game_db/game_db.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -78,24 +79,16 @@ void gc_mmceman_task(void) {
                 break;
 
             case MMCEMAN_SET_GAMEID:
-            {//
-                //int mode;
-                //if (settings_get_gc_variant() == PS2_VARIANT_COH)
-                //    mode = game_db_update_arcade(mmceman_gameid);
-                //else
-                //    mode = game_db_update_game(mmceman_gameid);
-                //if (MODE_PS1 == mode)
-                //    settings_set_mode(MODE_TEMP_PS1);
-                //else
-                //    gc_cardman_set_gameid(mmceman_gameid);
-                //    log(LOG_INFO, "%s: set game id\n", __func__);
+            {
+                const char* game_id;
+                const char* region;
+                game_db_update_game(mmceman_gameid);
+                game_db_get_current_id(&game_id, &region);
+                log(LOG_INFO, "%s: game id %s\n", __func__, game_id);
+                gc_cardman_set_gameid(game_id, region);
+                log(LOG_INFO, "%s: set game id %s\n", __func__, game_id);
                 break;
             }
-
-            //TEMP:
-            case MMCEMAN_SWITCH_BOOTCARD:
-                gc_cardman_switch_bootcard();
-            break;
 
             case MMCEMAN_UNMOUNT_BOOTCARD:
                 if (gc_cardman_get_idx() == 0) {
@@ -160,9 +153,10 @@ void __time_critical_func(gc_mmceman_queue_tx)(uint8_t byte)
 bool __time_critical_func(gc_mmceman_set_gameid)(const uint8_t* const game_id) {
     char sanitized_game_id[5] = {0};
     bool ret = false;
-    memcpy(sanitized_game_id, game_id, sizeof(sanitized_game_id));
-    log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
+    log(LOG_INFO, "Original ID: %s\n", game_id);
+    memcpy(sanitized_game_id, game_id, sizeof(sanitized_game_id) - 1);
     if (game_id[0] != 0x00) {
+        log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
         snprintf(mmceman_gameid, sizeof(mmceman_gameid), "%s", sanitized_game_id);
         mmceman_switching_timeout = 0U;
         mmceman_cmd = MMCEMAN_SET_GAMEID;
