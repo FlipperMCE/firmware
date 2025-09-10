@@ -1,0 +1,14 @@
+﻿---
+BasedOnStyle: Google
+AlignConsecutiveMacros: 'true'
+AllowAllArgumentsOnNextLine: 'false'
+AllowShortBlocksOnASingleLine: 'true'
+AllowShortCaseLabelsOnASingleLine: 'true'
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: 'false'
+ColumnLimit: '160'
+IndentPPDirectives: BeforeHash
+IndentWidth: '4'
+
+...
