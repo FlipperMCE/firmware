@@ -40,7 +40,7 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
-static uint64_t time_start;
+static uint64_t time_screen;
 
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
@@ -83,6 +83,13 @@ static bool refresh_gui;
 #define COLOR_BG lv_color_black()
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
+static void ui_goto_screen(lv_obj_t *scr) {
+    if (lv_scr_act() != scr) {
+        UI_GOTO_SCREEN(scr);
+        time_screen = time_us_64();
+    }
+}
 
 static lv_obj_t *ui_scr_create(void) {
     lv_obj_t *obj = lv_obj_create(NULL);
@@ -248,7 +255,7 @@ static void reload_card_cb(int progress, bool done) {
     if (done) {
         gc_cardman_set_progress_cb(NULL);
 
-        UI_GOTO_SCREEN(scr_main);
+        ui_goto_screen(scr_main);
         input_flush();
         waiting_card = false;
     }
@@ -337,6 +344,7 @@ static void evt_scr_main(lv_event_t *event) {
                 case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
             }
         }
+        time_screen = time_us_64();
     }
 }
 
@@ -345,9 +353,10 @@ static void evt_scr_menu(lv_event_t *event) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
         log(LOG_INFO, "menu screen got key %d\n", (int)key);
         if (key == INPUT_KEY_BACK || key == INPUT_KEY_MENU) {
-            UI_GOTO_SCREEN(scr_main);
+            ui_goto_screen(scr_main);
             lv_event_stop_bubbling(event);
         }
+        time_screen = time_us_64();
     }
 }
 
@@ -824,6 +833,8 @@ static void create_splash(void) {
     lv_img_set_src(img, &splash_img_dsc);
 
     lv_obj_center(img);
+
+    lv_obj_add_event_cb(scr_splash, evt_scr_main, LV_EVENT_ALL, NULL);
 }
 
 static void create_ui(void) {
@@ -843,7 +854,7 @@ static void create_ui(void) {
     create_splash();
 
     /* start at the main screen */
-    UI_GOTO_SCREEN(scr_main);
+    ui_goto_screen(scr_main);
 }
 
 static void update_activity(void) {
@@ -915,7 +926,7 @@ void gui_init(void) {
 
         create_ui();
         splash_init();
-        time_start = time_us_64();
+        time_screen = time_us_64();
 
         refresh_gui = false;
         waiting_card = false;
@@ -933,7 +944,7 @@ void gui_do_gc_card_switch(void) {
 
     update_bar();
 
-    UI_GOTO_SCREEN(scr_card_switch);
+    ui_goto_screen(scr_card_switch);
 
     oled_update_last_action_time();
 
@@ -948,12 +959,15 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (time_us_64() < time_start + 2 * 1000 * 1000) {
+    if (time_us_64() <  GUI_SCREEN_IMAGE_TIMEOUT_US) {
         // Wait for 2 seconds before showing the main screen
         if (lv_scr_act() != scr_splash) {
-            UI_GOTO_SCREEN(scr_splash);
+            ui_goto_screen(scr_splash);
         }
     } else if (waiting_card) {
+        if (lv_scr_act() == scr_splash)
+            ui_goto_screen(scr_card_switch);
+
         update_bar();
 
         oled_update_last_action_time();
@@ -965,7 +979,7 @@ void gui_task(void) {
         static char card_channel_s[8];
 
         if (lv_scr_act() == scr_splash) {
-            UI_GOTO_SCREEN(scr_main);
+            ui_goto_screen(scr_main);
         }
 
         lv_label_set_text(main_header, "GC Memory Card");
@@ -1022,10 +1036,19 @@ void gui_task(void) {
                 lv_label_set_text(scr_main_info_lbl, info_text);
 
             }
+
+            splash_update_current(folder_name, folder_name);
         }
 
         refresh_gui = false;
         update_activity();
     }
+    if (splash_game_image_available
+        && (lv_scr_act() == scr_main)
+        && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
+        ui_goto_screen(scr_splash);
+    }
+
+
     gui_tick();
 }

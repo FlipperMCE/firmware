@@ -9,6 +9,7 @@
 #include "pico/platform.h"
 #include "pico/time.h"
 #include "sd.h"
+#include "card_config.h"
 
 uint8_t splash_img[(DISPLAY_HEIGHT * DISPLAY_WIDTH / 8) + 8] = {
   0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -142,10 +143,14 @@ uint8_t splash_img[(DISPLAY_HEIGHT * DISPLAY_WIDTH / 8) + 8] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+bool splash_game_image_available = false;
+
+
 void splash_init(void) {
     if (((uint8_t*)FLASH_OFF_SPLASH + XIP_BASE)[sizeof(splash_img)] == 0x00) {
         // If the splash image is not set, copy the default image
         memcpy(splash_img, (void *)FLASH_OFF_SPLASH + XIP_BASE, sizeof(splash_img));
+        printf("Default splash image loaded from flash.\n");
     }
 }
 
@@ -161,21 +166,8 @@ bool splash_load_sd(void) {
     }
     return ret;
 }
-static uint8_t buff[sizeof(splash_img) + 1] = {0};
 
-void __no_inline_not_in_flash_func(splash_install)(void) {
-    memcpy(buff, splash_img, sizeof(splash_img));
 
-    buff[sizeof(splash_img)] = 0x00; // Ensure null termination
-
-    if (multicore_lockout_victim_is_initialized(1))
-        multicore_lockout_start_blocking();
-    uint32_t status = save_and_disable_interrupts();
-
-    flash_range_erase(FLASH_OFF_SPLASH, 4096);
-    flash_range_program(FLASH_OFF_SPLASH, buff, sizeof(buff));
-    restore_interrupts(status);
-    if (multicore_lockout_victim_is_initialized(1))
-        multicore_lockout_end_blocking();
-    DPRINTF("Splash image installed successfully.\n");
+void splash_update_current(const char* card_folder, const char* card_base) {
+    splash_game_image_available = card_config_read_image(splash_img, card_folder, card_base);
 }

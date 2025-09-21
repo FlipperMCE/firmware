@@ -152,6 +152,23 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
     return ctx.max_channels;
 }
 
+bool card_config_read_image(uint8_t buff[1032], const char* card_folder, const char* card_base) {
+    char image_path[64];
+    int fd;
+
+    snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/GC/%s/%s.bin", card_folder, card_base);
+
+    fd = sd_open(image_path, O_RDONLY);
+    if (fd >= 0) {
+        sd_read(fd, buff, 1032);
+        sd_close(fd);
+        log(LOG_TRACE, "Read image %s\n", image_path);
+        return true;
+    } else {
+        memset(buff, 0, 1032);
+        return false;
+    }
+}
 
 void card_config_get_card_folder(const char* game_id, char* card_folder, size_t card_folder_max_len) {
 
