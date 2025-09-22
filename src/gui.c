@@ -96,7 +96,6 @@ static void ui_goto_screen(lv_obj_t *scr) {
         lv_scr_load(scr);
         lv_group_focus_obj(scr);
         time_screen = time_us_64();
-        printf("Screen changed\n");
     }
 }
 
@@ -970,7 +969,6 @@ void gui_task(void) {
 
     char card_name[127];
     const char *folder_name = NULL;
-    printf("UI state %d\n", ui_state);
 
     if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
         switch (ui_state) {
