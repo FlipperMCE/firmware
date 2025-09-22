@@ -334,14 +334,15 @@ static void evt_scr_main(lv_event_t *event) {
             lv_obj_t *first = lv_obj_get_child(main_page, 0);
             lv_group_focus_obj(first);
             lv_event_stop_bubbling(event);
-        }
-
-        if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
+        } else if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             switch (key) {
                 case INPUT_KEY_PREV: gc_mmceman_prev_ch(true); break;
                 case INPUT_KEY_NEXT: gc_mmceman_next_ch(true); break;
                 case INPUT_KEY_BACK: gc_mmceman_prev_idx(true); break;
                 case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
+            }
+            if (lv_scr_act() != scr_main) {
+                ui_goto_screen(scr_main);
             }
         }
         time_screen = time_us_64();
