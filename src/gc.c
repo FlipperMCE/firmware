@@ -29,6 +29,7 @@ void gc_init(void) {
     multicore_launch_core1(gc_memory_card_main);
 
     gc_mc_data_interface_init();
+    gc_mmceman_block_init();
 
     gc_cardman_init();
 
@@ -51,8 +52,10 @@ bool gc_task(void) {
     oled_task();
 #endif
 
-    if (gc_cardman_is_idle())
+    if (gc_cardman_is_idle()) {
         gc_mc_data_interface_task();
+        gc_mmceman_block_task();
+    }
 
     return true;
 }

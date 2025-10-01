@@ -9,6 +9,7 @@
 #include "hardware/structs/iobank0.h"
 
 #include "mmceman/gc_mmceman.h"
+#include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
@@ -364,23 +365,120 @@ static void __time_critical_func(mc_get_game_name)(void) {
     gc_mc_respond(0x00);
 }
 
+static void __time_critical_func(mc_block_start_read)(void) {
+    uint8_t sector[4] = {};
+    uint8_t count[4] = {};
+    uint32_t *sec_u32 = (uint32_t *)sector;
+    uint32_t *count_u32 = (uint32_t *)count;
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&sector[i]);
+    }
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&count[i]);
+    }
+//    log(LOG_WARN, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u32);
+    gc_mmceman_block_request_read_sector(*sec_u32, *count_u32);
+    while (!gc_mmceman_block_data_ready()) {
+        tight_loop_contents();
+    }
+//    log(LOG_WARN, "Block read ready: sector=%u count=%u\n", *sec_u32, *count_u32);
+    while (!reset) {
+        tight_loop_contents();
+    }
+    sleep_us(15);
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_read)(void) {
+    uint8_t* buffer;
+    gc_mmceman_block_read_data(&buffer);
+    for (int i = 0; i < 512; i++) {
+        gc_mc_respond(buffer[i]);
+    }
+    //for (int i = 0; i < 100; i++) {
+    //    log(LOG_WARN, "%02x ", buffer[i]);
+    //}
+    //log(LOG_WARN, "\n");
+    gc_mmceman_block_swap_in_next();
+    //log(LOG_WARN, "Block read swap done\n");
+    while (!gc_mmceman_block_data_ready()) {
+        tight_loop_contents();
+    }
+    //log(LOG_WARN, "Block read next ready\n");
+    while (!reset) {
+
+        tight_loop_contents();
+    }
+    sleep_us(15);
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_start_write)(void) {
+    uint8_t sector[4] = {};
+    uint8_t count[4] = {};
+    uint32_t *sec_u32 = (uint32_t *)sector;
+    uint32_t *count_u32 = (uint32_t *)count;
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&sector[i]);
+    }
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&count[i]);
+    }
+    log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u32);
+    gc_mmceman_block_request_write_sector(*sec_u32, *count_u32);
+
+    log(LOG_WARN, "Block write ready: sector=%u count=%u\n", *sec_u32, *count_u32);
+    while (!reset) {
+        tight_loop_contents();
+    }
+    sleep_us(15);
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_write)(void) {
+    uint8_t* buffer;
+    gc_mmceman_get_write_block(&buffer);
+    for (int i = 0; i < 512; i++) {
+        gc_receiveOrNextCmd(&buffer[i]);
+    }
+    log(LOG_WARN, "Block write received\n");
+    gc_mmceman_block_write_data();
+    log(LOG_WARN, "Block write done\n");
+    while (!reset) {
+        tight_loop_contents();
+    }
+    sleep_us(15);
+    gpio_put(PIN_GC_INT, 0);
+}
+
 static void __time_critical_func(mc_mce_cmd)(void) {
     uint8_t cmd;
     gc_receiveOrNextCmd(&cmd);
     switch (cmd) {
-        case 0x00:
+        case MMCEMAN_GET_DEV_ID:
             mc_get_dev_id();
             break;
-        case 0x11:
+        case MMCEMAN_SET_GAME_ID:
             mc_set_game_id();
             break;
-        case 0x12:
+        case MMCEMAN_GET_GAME_NAME:
             mc_get_game_name();
             break;
-        case 0x13:
+        case MMCEMAN_SET_GAME_NAME:
             mc_set_game_name();
             break;
-
+        case MMCEMAN_CMD_BLOCK_START_READ:
+            mc_block_start_read();
+            break;
+        case MMCEMAN_CMD_BLOCK_READ:
+            mc_block_read();
+            break;
+        case MMCEMAN_CMD_BLOCK_START_WRITE:
+            mc_block_start_write();
+            break;
+        case MMCEMAN_CMD_BLOCK_WRITE:
+            mc_block_write();
+            break;
         default:
             DPRINTF("MCE: Unknown command: %02x ", cmd);
             break;
@@ -401,6 +499,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         reset = 0;
 
         res = gc_receiveFirst(&cmd);
+
         if (res != RECEIVE_OK) {
             if (res == RECEIVE_RESET) {
                 continue;
@@ -455,7 +554,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 DPRINTF("ERASE CARD ");
                 break;
             default:
-                DPRINTF("Unknown command: %02x ", cmd);
+                //DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
         if (interrupt_enable & 0x01) {

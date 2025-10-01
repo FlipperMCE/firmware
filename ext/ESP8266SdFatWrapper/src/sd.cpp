@@ -4,6 +4,7 @@
 #include "SPI.h"
 
 #include "hardware/gpio.h"
+#include "pico/platform.h"
 
 extern "C" {
 #include "debug.h"
@@ -271,4 +272,36 @@ extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
 
 extern "C" int sd_rename(const char* old_path, const char* new_path) {
     return sd.rename(old_path, new_path) != true;
+}
+
+extern "C" bool sd_read_sector(uint32_t sector, uint8_t* dst) {
+    while (sd.card()->isBusy()) {
+        // Wait until the card is ready
+        tight_loop_contents();
+    }
+    return sd.card()->readSector(sector, dst);
+}
+
+extern "C" bool sd_start_read(uint32_t sector) {
+    while (sd.card()->isBusy()) {
+        // Wait until the card is ready
+        tight_loop_contents();
+    }
+    return sd.card()->readStart(sector);
+}
+
+extern "C" bool sd_read_multi(uint8_t* dst) {
+    return sd.card()->readData(dst);
+}
+
+extern "C" void sd_end_read() {
+    sd.card()->readStop();
+}
+
+extern "C" bool sd_write_sector(uint32_t sector, const uint8_t* src) {
+    while (sd.card()->isBusy()) {
+        // Wait until the card is ready
+        tight_loop_contents();
+    }
+    return sd.card()->writeSector(sector, src);
 }
