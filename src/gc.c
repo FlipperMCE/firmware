@@ -2,6 +2,7 @@
 #include "hardware/timer.h"
 
 #include "mmceman/gc_mmceman.h"
+#include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/multicore.h"
 #if WITH_GUI
 #include "gui.h"
