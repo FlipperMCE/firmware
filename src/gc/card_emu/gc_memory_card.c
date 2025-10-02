@@ -10,6 +10,7 @@
 
 #include "mmceman/gc_mmceman.h"
 #include "mmceman/gc_mmceman_block_commands.h"
+#include "mmceman/gc_mmceman_commands.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
@@ -370,6 +371,7 @@ static void __time_critical_func(mc_block_start_read)(void) {
     uint8_t count[4] = {};
     uint32_t *sec_u32 = (uint32_t *)sector;
     uint32_t *count_u32 = (uint32_t *)count;
+    uint8_t* buffer;
     for (int i = 3; i >= 0; i--) {
         gc_receive(&sector[i]);
     }
@@ -378,38 +380,62 @@ static void __time_critical_func(mc_block_start_read)(void) {
     }
 //    log(LOG_WARN, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u32);
     gc_mmceman_block_request_read_sector(*sec_u32, *count_u32);
+    interrupt_enable = 0x01;
     while (!gc_mmceman_block_data_ready()) {
         tight_loop_contents();
     }
-//    log(LOG_WARN, "Block read ready: sector=%u count=%u\n", *sec_u32, *count_u32);
-    while (!reset) {
-        tight_loop_contents();
-    }
-    sleep_us(15);
+    //log(LOG_WARN, "Block read ready: sector=%u count=%u\n", *sec_u32, *count_u32);
+    //log(LOG_WARN, "Block read data 0\n");
+    //gc_mmceman_block_read_data(&buffer);
+
     gpio_put(PIN_GC_INT, 0);
+    //sleep_us(50);
+     /*
+    for (uint32_t block_cnt = 0; block_cnt < *count_u32; block_cnt++) {
+        gc_mc_respond(0xFF); // out byte 1-2
+        gc_mc_respond(0xFF);
+        while (!reset) {
+        }
+        reset = 0;
+        gc_card_active = true;
+        log(LOG_WARN, "SELECT\n");
+        gpio_put(PIN_GC_INT, 1);
+        uint32_t i = 0;
+
+        for (i = 0; (i < 512) && (gc_card_active); i++) {
+            //gc_mc_respond(buffer[i]);
+            gc_mc_respond(i);
+        }
+        if (i < 512) {
+            log(LOG_WARN, "Card deselected during block read at pos %d\n", i);
+            break;
+        }
+
+        gc_mmceman_block_swap_in_next();
+        log(LOG_WARN, "Block read swap done\n");
+        while (!gc_mmceman_block_data_ready()) {
+            tight_loop_contents();
+        }
+
+        log(LOG_WARN, "Block read data %d\n", block_cnt + 1);
+        gc_mmceman_block_read_data(&buffer);
+        gpio_put(PIN_GC_INT, 0);
+    }*/
 }
 
 static void __time_critical_func(mc_block_read)(void) {
     uint8_t* buffer;
     gc_mmceman_block_read_data(&buffer);
+
     for (int i = 0; i < 512; i++) {
         gc_mc_respond(buffer[i]);
     }
-    //for (int i = 0; i < 100; i++) {
-    //    log(LOG_WARN, "%02x ", buffer[i]);
-    //}
-    //log(LOG_WARN, "\n");
     gc_mmceman_block_swap_in_next();
-    //log(LOG_WARN, "Block read swap done\n");
+
     while (!gc_mmceman_block_data_ready()) {
         tight_loop_contents();
     }
-    //log(LOG_WARN, "Block read next ready\n");
-    while (!reset) {
 
-        tight_loop_contents();
-    }
-    sleep_us(15);
     gpio_put(PIN_GC_INT, 0);
 }
 
@@ -427,27 +453,19 @@ static void __time_critical_func(mc_block_start_write)(void) {
     log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u32);
     gc_mmceman_block_request_write_sector(*sec_u32, *count_u32);
 
-    log(LOG_WARN, "Block write ready: sector=%u count=%u\n", *sec_u32, *count_u32);
-    while (!reset) {
-        tight_loop_contents();
-    }
-    sleep_us(15);
     gpio_put(PIN_GC_INT, 0);
 }
 
 static void __time_critical_func(mc_block_write)(void) {
-    uint8_t* buffer;
-    gc_mmceman_get_write_block(&buffer);
+    uint8_t* buffer = gc_mmceman_get_write_block();
     for (int i = 0; i < 512; i++) {
         gc_receiveOrNextCmd(&buffer[i]);
     }
-    log(LOG_WARN, "Block write received\n");
     gc_mmceman_block_write_data();
-    log(LOG_WARN, "Block write done\n");
     while (!reset) {
         tight_loop_contents();
     }
-    sleep_us(15);
+    log(LOG_WARN, "Block write done\n");
     gpio_put(PIN_GC_INT, 0);
 }
 
@@ -495,6 +513,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         res = 0;
 
         while (!reset) {}; // Wait for reset
+        gpio_put(PIN_GC_INT, 1);
 
         reset = 0;
 
@@ -557,10 +576,10 @@ static void __time_critical_func(mc_main_loop)(void) {
                 //DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
-        if (interrupt_enable & 0x01) {
+        //if (interrupt_enable & 0x01) {
             // Clear interrupt
-            gpio_put(PIN_GC_INT, 1);
-        }
+            //gpio_put(PIN_GC_INT, 1);
+        //}
     }
 }
 
@@ -634,6 +653,7 @@ void gc_memory_card_main(void) {
     init_pio();
     gpio_set_dir(PIN_GC_INT, true);
     gpio_put(PIN_GC_INT, 1);
+    gpio_set_drive_strength(PIN_GC_INT, GPIO_DRIVE_STRENGTH_12MA);
 
     gc_us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");

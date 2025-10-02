@@ -5,7 +5,6 @@
 
 #define PIN_MC_CONNECTED PIN_SENSE
 
-
 #define GC_MMCEMAN_CMD_IDENTIFIER    0x8B
 
 #define MMCEMAN_GET_DEV_ID      0x00

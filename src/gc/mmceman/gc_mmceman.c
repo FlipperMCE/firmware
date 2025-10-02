@@ -9,6 +9,7 @@
 #include "card_emu/gc_mc_internal.h"
 #include "debug.h"
 #include "hardware/timer.h"
+#include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/time.h"
 
 #if WITH_GUI
@@ -24,10 +25,10 @@
 
 #include "pico/platform.h"
 
-#if LOG_LEVEL_GC_S2M == 0
+#if LOG_LEVEL_MMCEMAN == 0
 #define log(x...)
 #else
-#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GC_S2M, level, fmt, ##x)
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MMCEMAN, level, fmt, ##x)
 #endif
 
 void (*mmceman_callback)(void);
