@@ -266,7 +266,8 @@ static void reload_card_cb(int progress, bool done) {
 
         ui_state = UI_STATE_MAIN;
         input_flush();
-    } else {
+    } else if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
+
         ui_state = UI_STATE_SWITCHING;
     }
 }
@@ -863,7 +864,7 @@ static void create_ui(void) {
     create_cardswitch_screen();
     create_splash();
 
-    /* start at the main screen */
+    /* start at the splash screen */
     ui_goto_screen(scr_splash);
     ui_state = UI_STATE_SPLASH;
 }
@@ -965,12 +966,13 @@ void gui_do_gc_card_switch(void) {
 }
 
 void gui_task(void) {
+    static uint32_t prev_state = UI_STATE_SPLASH;
     input_update_display(g_navbar);
 
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
+    if (prev_state != ui_state) {
         switch (ui_state) {
             case UI_STATE_SPLASH:
             case UI_STATE_GAME_IMG:
@@ -990,6 +992,7 @@ void gui_task(void) {
             default:
                 break;
         }
+        prev_state = ui_state;
     }
 
     if (ui_state == UI_STATE_MAIN) {
@@ -999,10 +1002,10 @@ void gui_task(void) {
         static char card_idx_s[8];
         static char card_channel_s[8];
 
-        lv_label_set_text(main_header, "GC Memory Card");
 
         if (displayed_card_idx != gc_cardman_get_idx() || displayed_card_channel != gc_cardman_get_channel() || cardman_state != gc_cardman_get_state() ||
             refresh_gui) {
+            lv_label_set_text(main_header, "GC Memory Card");
             displayed_card_idx = gc_cardman_get_idx();
             displayed_card_channel = gc_cardman_get_channel();
             folder_name = gc_cardman_get_folder_name();
