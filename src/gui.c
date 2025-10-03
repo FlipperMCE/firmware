@@ -965,13 +965,8 @@ void gui_do_gc_card_switch(void) {
     }
 }
 
-void gui_task(void) {
+static void gui_update_state() {
     static uint32_t prev_state = UI_STATE_SPLASH;
-    input_update_display(g_navbar);
-
-    char card_name[127];
-    const char *folder_name = NULL;
-
     if (prev_state != ui_state) {
         switch (ui_state) {
             case UI_STATE_SPLASH:
@@ -983,8 +978,6 @@ void gui_task(void) {
                 break;
             case UI_STATE_SWITCHING:
                 ui_goto_screen(scr_card_switch);
-                update_bar();
-                oled_update_last_action_time();
                 break;
             case UI_STATE_MENU:
                 ui_goto_screen(scr_menu);
@@ -994,6 +987,16 @@ void gui_task(void) {
         }
         prev_state = ui_state;
     }
+}
+
+void gui_task(void) {
+    input_update_display(g_navbar);
+
+    char card_name[127];
+    const char *folder_name = NULL;
+
+    gui_update_state();
+
 
     if (ui_state == UI_STATE_MAIN) {
         static int displayed_card_idx = -1;
@@ -1066,6 +1069,9 @@ void gui_task(void) {
             && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
                 ui_state = UI_STATE_GAME_IMG;
         }
+    } else if (UI_STATE_SWITCHING == ui_state) {
+        update_bar();
+        oled_update_last_action_time();
     }
 
     gui_tick();

@@ -433,7 +433,7 @@ static void __time_critical_func(mc_block_read)(void) {
     gc_mmceman_block_swap_in_next();
 
     while (!gc_mmceman_block_data_ready()) {
-        tight_loop_contents();
+        if (mc_exit_request) return;
     }
 
     gpio_put(PIN_GC_INT, 0);
