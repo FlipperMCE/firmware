@@ -78,10 +78,9 @@ void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector,
     if (is_block_ready(&sd_read_ops[0], sector)
         || is_block_in_progress(&sd_read_ops[0], sector)) {
         // Block is being read or ready in position 0
-        read_sectors_remaining--;
 
         // Schedule read ahead only if we have more sectors to read
-        if (read_sectors_remaining > 0) {
+        if (count - 1  > 0) {
             if (!is_block_ready(&sd_read_ops[1], sector + 1)
                 && !is_block_in_progress(&sd_read_ops[1], sector + 1)) {
             schedule_read(&sd_read_ops[1], sector + 1);
@@ -101,11 +100,8 @@ void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector,
         || is_block_in_progress(&sd_read_ops[1], sector)) {
         swap_ops(&sd_read_ops[0], &sd_read_ops[1]);
 
-        // Update sector count since we're using the read-ahead data
-        read_sectors_remaining--;
-
         // Schedule new read ahead only if we have more sectors to read
-        if (read_sectors_remaining > 0) {
+        if (count - 1 > 0) {
             schedule_read(&sd_read_ops[1], sector + 1);
         }
 
@@ -117,7 +113,7 @@ void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector,
     schedule_read(&sd_read_ops[0], sector);
 
     // Schedule read ahead only if we have more than one sector to read
-    if (read_sectors_remaining > 1) {
+    if (count  > 1) {
         schedule_read(&sd_read_ops[1], sector + 1);
     } else {
         // Cancel any existing read-ahead
@@ -146,6 +142,7 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
     // If data is ready in position 0
     if (sd_read_ops[0].result == 1) {
         *buffer = sd_read_ops[0].buffer;
+        read_sectors_remaining--;
         uint32_t next_block = sd_read_ops[0].block_num + 1;
 
         // If we have read-ahead data ready, move it to position 0
@@ -171,9 +168,6 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
             }
         }
 
-        if (read_sectors_remaining > 0) {
-            read_sectors_remaining--;
-        }
     }
 
     critical_section_exit(&sd_ops_crit);
@@ -216,32 +210,30 @@ void __time_critical_func(gc_mmceman_block_write_data)(void) {
 // ------ Core 0: SD Card Task ------
 
 static void gc_mmceman_block_read_task(void) {
-    while (read_sectors_remaining > 0 || sd_read_ops[0].request == 1) {
-        for (int i = 0; i < 2; i++) {
-            bool has_request = false;
-            uint8_t* buffer;
-            uint32_t block_num;
+    for (int i = 0; i < 2; i++) {
+        bool has_request = false;
+        uint8_t* buffer;
+        uint32_t block_num;
+
+        critical_section_enter_blocking(&sd_ops_crit);
+        if (sd_read_ops[i].request == 1) {
+            has_request = true;
+            block_num = sd_read_ops[i].block_num;
+            buffer = sd_read_ops[i].buffer;
+        }
+        critical_section_exit(&sd_ops_crit);
+
+        if (has_request) {
+            // Execute the read outside the critical section
+            bool read_success = sd_read_sector(block_num, buffer);
 
             critical_section_enter_blocking(&sd_ops_crit);
-            if (sd_read_ops[i].request == 1) {
-                has_request = true;
-                block_num = sd_read_ops[i].block_num;
-                buffer = sd_read_ops[i].buffer;
+            // Only update if this is still the same request
+            if (sd_read_ops[i].request == 1 && sd_read_ops[i].block_num == block_num) {
+                sd_read_ops[i].result = read_success ? 1 : -1;
+                sd_read_ops[i].request = 0;
             }
             critical_section_exit(&sd_ops_crit);
-
-            if (has_request) {
-                // Execute the read outside the critical section
-                bool read_success = sd_read_sector(block_num, buffer);
-
-                critical_section_enter_blocking(&sd_ops_crit);
-                // Only update if this is still the same request
-                if (sd_read_ops[i].request == 1 && sd_read_ops[i].block_num == block_num) {
-                    sd_read_ops[i].result = read_success ? 1 : -1;
-                    sd_read_ops[i].request = 0;
-                }
-                critical_section_exit(&sd_ops_crit);
-            }
         }
     }
 }
@@ -264,12 +256,6 @@ static void gc_mmceman_block_write_task(void) {
             sd_write_op.blocks_written++;
             sd_write_op.result = 1; // All blocks written successfully
             sd_write_op.request = 0;
-            /*
-            if (sd_write_op.blocks_written >= sd_write_op.block_count) {
-            } else {
-                sd_write_op.result = 0; // More blocks to write
-                sd_write_op.request = 1; // Keep request active for next block
-            }*/
             critical_section_exit(&sd_ops_crit);
         } else {
             DPRINTF("Write failed!!\n");
@@ -309,7 +295,7 @@ void gc_mmceman_block_init(void) {
 bool gc_mmceman_block_idle(void) {
     bool ret = false;
     critical_section_enter_blocking(&sd_ops_crit);
-    ret = (sd_read_ops[0].request == 0) && (sd_write_op.block_count == sd_write_op.blocks_written);
+    ret = (read_sectors_remaining == 0) && (sd_write_op.block_count == sd_write_op.blocks_written);
     critical_section_exit(&sd_ops_crit);
-    return false;
+    return ret;
 }

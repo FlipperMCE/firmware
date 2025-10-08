@@ -106,8 +106,7 @@ void gc_mmceman_task(void) {
     if (gc_cardman_needs_update()
         && (mmceman_switching_timeout < time_us_64())
         && !input_is_any_down()
-        //&& !mmceman_op_in_progress
-    ) {
+        && (gc_mmceman_block_idle())) {
 
         log(LOG_INFO, "%s Switching card now\n", __func__);
         uint32_t switching_time = time_us_32();
