@@ -292,8 +292,9 @@ static void __time_critical_func(gc_mc_write)(void) {
     card_state |= 0x06; // Set card state to 0x06 (write done)
 
     if (interrupt_enable & 0x01) {
-        // Wait 1ms
-        sleep_us(1000);
+        // Wait 1ms in jpn
+        if (gc_cardman_get_card_enc())
+            sleep_us(1000);
 
         gpio_put(PIN_GC_INT, 0);
     }
