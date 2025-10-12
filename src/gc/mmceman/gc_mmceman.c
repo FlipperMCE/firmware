@@ -37,7 +37,6 @@ int mmceman_transfer_stage = 0;
 volatile bool mmceman_tx_queued;
 volatile uint8_t mmceman_tx_byte;
 
-volatile uint8_t mmceman_mcman_retry_counter;
 volatile bool mmceman_op_in_progress = false;
 volatile bool mmceman_timeout_detected = false;
 volatile bool mmceman_fs_abort_read = false;
@@ -109,27 +108,17 @@ void gc_mmceman_task(void) {
         && (gc_mmceman_block_idle())) {
 
         log(LOG_INFO, "%s Switching card now\n", __func__);
-        uint32_t switching_time = time_us_32();
 
         // close old card
         gc_memory_card_exit();
-        log(LOG_TRACE, "%s After Exit\n", __func__);
         gc_mc_data_interface_flush();
         gc_cardman_close();
-        log(LOG_TRACE, "%s After Close\n", __func__);
 
         sleep_ms(500);
 #if WITH_GUI
         gui_do_gc_card_switch();
-        log(LOG_TRACE, "%s After GUI\n", __func__);
         gui_request_refresh();
-        log(LOG_TRACE, "%s After Refresh\n", __func__);
 #endif
-        /* Set retry counter to stop the sd2psx from
-         * responding to the next 5 requests from mcman.
-         * This causes mmcman to clear it's cache and invalidate
-         * handles, preventing a cache flush bug from causing corruption */
-        mmceman_mcman_retry_counter = 5;
 
         // open new card
         gc_cardman_open();
