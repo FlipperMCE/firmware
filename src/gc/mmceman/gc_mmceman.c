@@ -124,7 +124,7 @@ void gc_mmceman_task(void) {
         gc_cardman_open();
         gc_memory_card_enter();
 
-        log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
+        //log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
     }
 }
 
