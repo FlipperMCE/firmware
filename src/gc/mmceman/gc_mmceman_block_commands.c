@@ -146,25 +146,24 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
     critical_section_enter_blocking(&sd_ops_crit);
     // If data is ready in position 0
     if (sd_read_ops[0].result == 1) {
+        uint32_t next_block = sd_read_ops[0].block_num + 1;
         *buffer = sd_read_ops[0].buffer;
         read_sectors_remaining--;
-        uint32_t next_block = sd_read_ops[0].block_num + 1;
+        sd_read_ops[0].result = 0;
 
         if (read_sectors_remaining > 0) {
-            // If we have read-ahead data ready, move it to position 0
-            if (sd_read_ops[1].result == 1) {
-                // Check if position 1 contains the block we actually need next
-                if (sd_read_ops[1].block_num != next_block) {
-                    // Read-ahead contains wrong block, discard it and schedule correct one
-                    schedule_read(&sd_read_ops[1], next_block);
+            if (sd_read_ops[1].block_num != next_block) {
+                if (sd_read_ops[1].request == 1) {
+                    clear_op(&sd_read_ops[1]);
                 }
-            } else if (sd_read_ops[1].request == 1 && sd_read_ops[1].block_num != next_block) {
                 // Schedule read for the correct next block if needed
-                    schedule_read(&sd_read_ops[1], next_block);
+                schedule_read(&sd_read_ops[1], next_block);
             }
         } else {
             clear_op(&sd_read_ops[1]);
         }
+    } else {
+        *buffer = NULL;
     }
 
     critical_section_exit(&sd_ops_crit);
