@@ -126,7 +126,7 @@ void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector,
 bool __time_critical_func(gc_mmceman_block_data_ready)(void) {
     bool ready = false;
     critical_section_enter_blocking(&sd_ops_crit);
-    ready = (sd_read_ops[0].result == 1);
+    ready = (sd_read_ops[0].result == 1) || (sd_read_ops[0].request == 0);
     critical_section_exit(&sd_ops_crit);
     return ready;
 }
@@ -150,7 +150,9 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
             // Check if position 1 contains the block we actually need next
             if (sd_read_ops[1].block_num != next_block) {
                 // Read-ahead contains wrong block, discard it and schedule correct one
-                schedule_read(&sd_read_ops[1], next_block);
+                if (read_sectors_remaining > 1) {
+                    schedule_read(&sd_read_ops[1], next_block);
+                }
             }
         } else if (sd_read_ops[1].request == 1 && sd_read_ops[1].block_num != next_block) {
             // If there's an in-progress read for the wrong block, cancel it
