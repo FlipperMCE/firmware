@@ -14,7 +14,7 @@ static volatile uint8_t sd_buffers[2][SD_BLOCK_SIZE];
 static volatile uint8_t sd_write_buffer[SD_BLOCK_SIZE];
 
 typedef struct sd_op_Tag {
-    uint8_t* buffer;      // Pointer to double-buffered data array
+    volatile uint8_t* buffer;      // Pointer to double-buffered data array
     uint32_t block_num;   // Current block number being processed
     volatile int result;  // Operation result: 0=pending, 1=success, -1=failure
     volatile int request; // Operation state: 0=idle, 1=read pending, 2=write pending (future)
@@ -134,10 +134,15 @@ bool __time_critical_func(gc_mmceman_block_data_ready)(void) {
 void __time_critical_func(gc_mmceman_block_swap_in_next)(void) {
     critical_section_enter_blocking(&sd_ops_crit);
     swap_ops(&sd_read_ops[0], &sd_read_ops[1]);
+    if ((read_sectors_remaining > 1)) {
+        schedule_read(&sd_read_ops[1], sd_read_ops[0].block_num + 1);
+    } else {
+        clear_op(&sd_read_ops[1]);
+    }
     critical_section_exit(&sd_ops_crit);
 }
 
-void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
+void __time_critical_func(gc_mmceman_block_read_data)(volatile uint8_t** buffer) {
     critical_section_enter_blocking(&sd_ops_crit);
     // If data is ready in position 0
     if (sd_read_ops[0].result == 1) {
@@ -159,13 +164,6 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
             clear_op(&sd_read_ops[1]);
             // Schedule read for the correct next block if needed
             if (read_sectors_remaining > 1) {
-                schedule_read(&sd_read_ops[1], next_block);
-            }
-        } else {
-            // No read-ahead data ready yet, just mark current buffer as consumed
-            // and ensure correct block is scheduled if needed
-
-            if (read_sectors_remaining > 1 && sd_read_ops[1].request == 0) {
                 schedule_read(&sd_read_ops[1], next_block);
             }
         }
@@ -214,7 +212,7 @@ void __time_critical_func(gc_mmceman_block_write_data)(void) {
 static void gc_mmceman_block_read_task(void) {
     for (int i = 0; i < 2; i++) {
         bool has_request = false;
-        uint8_t* buffer;
+        volatile uint8_t* buffer;
         uint32_t block_num;
 
         critical_section_enter_blocking(&sd_ops_crit);
@@ -227,7 +225,7 @@ static void gc_mmceman_block_read_task(void) {
 
         if (has_request) {
             // Execute the read outside the critical section
-            bool read_success = sd_read_sector(block_num, buffer);
+            bool read_success = sd_read_sector(block_num, (uint8_t*)buffer);
 
             critical_section_enter_blocking(&sd_ops_crit);
             // Only update if this is still the same request
