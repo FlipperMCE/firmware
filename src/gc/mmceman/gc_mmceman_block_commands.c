@@ -10,11 +10,11 @@
 #define SD_BLOCK_SIZE 512
 
 // Static buffers that will be pointed to
-static volatile uint8_t sd_buffers[2][SD_BLOCK_SIZE];
+static uint8_t sd_buffers[2][SD_BLOCK_SIZE];
 static volatile uint8_t sd_write_buffer[SD_BLOCK_SIZE];
 
 typedef struct sd_op_Tag {
-    volatile uint8_t* buffer;      // Pointer to double-buffered data array
+    uint8_t* buffer;      // Pointer to double-buffered data array
     uint32_t block_num;   // Current block number being processed
     volatile int result;  // Operation result: 0=pending, 1=success, -1=failure
     volatile int request; // Operation state: 0=idle, 1=read pending, 2=write pending (future)
@@ -142,7 +142,7 @@ void __time_critical_func(gc_mmceman_block_swap_in_next)(void) {
     critical_section_exit(&sd_ops_crit);
 }
 
-void __time_critical_func(gc_mmceman_block_read_data)(volatile uint8_t** buffer) {
+void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
     critical_section_enter_blocking(&sd_ops_crit);
     // If data is ready in position 0
     if (sd_read_ops[0].result == 1) {
@@ -150,24 +150,21 @@ void __time_critical_func(gc_mmceman_block_read_data)(volatile uint8_t** buffer)
         read_sectors_remaining--;
         uint32_t next_block = sd_read_ops[0].block_num + 1;
 
-        // If we have read-ahead data ready, move it to position 0
-        if (sd_read_ops[1].result == 1) {
-            // Check if position 1 contains the block we actually need next
-            if (sd_read_ops[1].block_num != next_block) {
-                // Read-ahead contains wrong block, discard it and schedule correct one
-                if (read_sectors_remaining > 1) {
+        if (read_sectors_remaining > 0) {
+            // If we have read-ahead data ready, move it to position 0
+            if (sd_read_ops[1].result == 1) {
+                // Check if position 1 contains the block we actually need next
+                if (sd_read_ops[1].block_num != next_block) {
+                    // Read-ahead contains wrong block, discard it and schedule correct one
                     schedule_read(&sd_read_ops[1], next_block);
                 }
+            } else if (sd_read_ops[1].request == 1 && sd_read_ops[1].block_num != next_block) {
+                // Schedule read for the correct next block if needed
+                    schedule_read(&sd_read_ops[1], next_block);
             }
-        } else if (sd_read_ops[1].request == 1 && sd_read_ops[1].block_num != next_block) {
-            // If there's an in-progress read for the wrong block, cancel it
+        } else {
             clear_op(&sd_read_ops[1]);
-            // Schedule read for the correct next block if needed
-            if (read_sectors_remaining > 1) {
-                schedule_read(&sd_read_ops[1], next_block);
-            }
         }
-
     }
 
     critical_section_exit(&sd_ops_crit);
@@ -191,7 +188,7 @@ uint8_t* __time_critical_func(gc_mmceman_get_write_block)(void) {
     sd_write_op.result = 0;
     critical_section_exit(&sd_ops_crit);
 
-    return sd_write_buffer;
+    return (uint8_t*)sd_write_buffer;
 }
 
 void __time_critical_func(gc_mmceman_block_write_data)(void) {
@@ -212,7 +209,7 @@ void __time_critical_func(gc_mmceman_block_write_data)(void) {
 static void gc_mmceman_block_read_task(void) {
     for (int i = 0; i < 2; i++) {
         bool has_request = false;
-        volatile uint8_t* buffer;
+        uint8_t* buffer;
         uint32_t block_num;
 
         critical_section_enter_blocking(&sd_ops_crit);
