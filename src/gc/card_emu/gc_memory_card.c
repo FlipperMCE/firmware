@@ -10,7 +10,6 @@
 
 #include "mmceman/gc_mmceman.h"
 #include "mmceman/gc_mmceman_block_commands.h"
-#include "mmceman/gc_mmceman_commands.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
@@ -21,7 +20,6 @@
 #include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 
 #if LOG_LEVEL_GC_MC == 0
 #define log(x...)
@@ -358,6 +356,8 @@ static void __time_critical_func(mc_set_game_name)(void) {
 
 static void __time_critical_func(mc_get_game_name)(void) {
     uint8_t i = 0;
+    uint8_t _;
+    gc_receive(&_);
     while (name[i] != 0x00 && i < 64) {
         gc_mc_respond(name[i++]);
     }
@@ -369,25 +369,23 @@ static void __time_critical_func(mc_get_game_name)(void) {
 
 static void __time_critical_func(mc_block_start_read)(void) {
     uint8_t sector[4] = {};
-    uint8_t count[4] = {};
+    uint8_t count[2] = {};
     uint32_t *sec_u32 = (uint32_t *)sector;
-    uint32_t *count_u32 = (uint32_t *)count;
-    uint8_t* buffer;
+    uint16_t *count_u16 = (uint16_t *)count;
+
     for (int i = 3; i >= 0; i--) {
         gc_receive(&sector[i]);
     }
-    for (int i = 3; i >= 0; i--) {
+    for (int i = 1; i >= 0; i--) {
         gc_receive(&count[i]);
     }
-//    log(LOG_WARN, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u32);
-    gc_mmceman_block_request_read_sector(*sec_u32, *count_u32);
+
+    gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
     interrupt_enable = 0x01;
     while (!gc_mmceman_block_data_ready()) {
         tight_loop_contents();
     }
-    //log(LOG_WARN, "Block read ready: sector=%u count=%u\n", *sec_u32, *count_u32);
-    //log(LOG_WARN, "Block read data 0\n");
-    //gc_mmceman_block_read_data(&buffer);
+
 
     gpio_put(PIN_GC_INT, 0);
     //sleep_us(50);
@@ -425,8 +423,10 @@ static void __time_critical_func(mc_block_start_read)(void) {
 }
 
 static void __time_critical_func(mc_block_read)(void) {
+    uint8_t _;
     uint8_t* buffer;
     gc_mmceman_block_read_data(&buffer);
+    gc_receive(&_);
 
     for (int i = 0; i < 512; i++) {
         gc_mc_respond(buffer[i]);
@@ -444,15 +444,15 @@ static void __time_critical_func(mc_block_start_write)(void) {
     uint8_t sector[4] = {};
     uint8_t count[4] = {};
     uint32_t *sec_u32 = (uint32_t *)sector;
-    uint32_t *count_u32 = (uint32_t *)count;
+    uint16_t *count_u16 = (uint16_t *)count;
     for (int i = 3; i >= 0; i--) {
         gc_receive(&sector[i]);
     }
-    for (int i = 3; i >= 0; i--) {
+    for (int i = 1; i >= 0; i--) {
         gc_receive(&count[i]);
     }
-    log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u32);
-    gc_mmceman_block_request_write_sector(*sec_u32, *count_u32);
+    log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u16);
+    gc_mmceman_block_request_write_sector(*sec_u32, *count_u16);
 
     gpio_put(PIN_GC_INT, 0);
 }

@@ -22,13 +22,13 @@ typedef struct sd_op_Tag {
 
 typedef struct sd_write_op_Tag {
     uint32_t start_block;   // Current block number being processed
-    uint32_t block_count;   // Number of blocks to write
+    uint16_t block_count;   // Number of blocks to write
     uint32_t blocks_written;  // Number of blocks written so far
     volatile int result;  // Operation result: 0=pending, 1=success, -1=failure
     volatile int request; // Operation state: 0=idle, 1=read pending, 2=write pending (future)
 } sd_write_op_t;
 
-static volatile uint32_t read_sectors_remaining = 0;
+static volatile uint16_t read_sectors_remaining = 0;
 static sd_write_op_t sd_write_op;
 static sd_op_t sd_read_ops[2];
 
@@ -68,7 +68,7 @@ static inline void clear_op(sd_op_t* op) {
 // Initiates a read request for multiple sectors with read-ahead optimization
 // Note: This must only be called from Core 1 as it manages request state
 // Note: No error handling for critical section failures - system assumed stable
-void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector, uint32_t count) {
+void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector, uint16_t count) {
     if (count == 0) return;
 
     critical_section_enter_blocking(&sd_ops_crit);
@@ -169,7 +169,7 @@ void __time_critical_func(gc_mmceman_block_read_data)(uint8_t** buffer) {
     critical_section_exit(&sd_ops_crit);
 }
 
-void __time_critical_func(gc_mmceman_block_request_write_sector)(uint32_t sector, uint32_t count) {
+void __time_critical_func(gc_mmceman_block_request_write_sector)(uint32_t sector, uint16_t count) {
     if (count == 0) return;
 
     critical_section_enter_blocking(&sd_ops_crit);
@@ -294,4 +294,11 @@ bool gc_mmceman_block_idle(void) {
     ret = (read_sectors_remaining == 0) && (sd_write_op.block_count == sd_write_op.blocks_written);
     critical_section_exit(&sd_ops_crit);
     return ret;
+}
+
+void gc_mmceman_block_finish_transfer(void) {
+    while ((read_sectors_remaining > 0)
+            || (sd_write_op.blocks_written < sd_write_op.block_count)) {
+        gc_mmceman_block_task();
+    }
 }
