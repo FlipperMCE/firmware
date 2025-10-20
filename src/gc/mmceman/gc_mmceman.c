@@ -104,12 +104,12 @@ void gc_mmceman_task(void) {
 
     if (gc_cardman_needs_update()
         && (mmceman_switching_timeout < time_us_64())
-        && !input_is_any_down()
-        && (gc_mmceman_block_idle())) {
+        && !input_is_any_down()) {
 
         log(LOG_INFO, "%s Switching card now\n", __func__);
 
         // close old card
+        gc_mmceman_block_finish_transfer();
         gc_memory_card_exit();
         gc_mc_data_interface_flush();
         gc_cardman_close();
