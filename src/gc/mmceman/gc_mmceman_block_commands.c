@@ -33,7 +33,7 @@ static sd_write_op_t sd_write_op;
 static sd_op_t sd_read_ops[2];
 
 static critical_section_t sd_ops_crit;
-
+static uint8_t access_mode;
 
 static inline void swap_ops(sd_op_t* op1, sd_op_t* op2) {
     sd_op_t temp = *op1;
@@ -190,6 +190,14 @@ uint8_t* __time_critical_func(gc_mmceman_get_write_block)(void) {
     return (uint8_t*)sd_write_buffer;
 }
 
+uint8_t __time_critical_func(gc_mmceman_block_get_access_mode)(void) {
+    return access_mode;
+}
+
+void __time_critical_func(gc_mmceman_block_set_access_mode)(uint8_t mode) {
+    access_mode = mode;
+}
+
 void __time_critical_func(gc_mmceman_block_write_data)(void) {
     critical_section_enter_blocking(&sd_ops_crit);
     if (sd_write_op.request == 0 && sd_write_op.result == 0) {
@@ -286,6 +294,8 @@ void gc_mmceman_block_init(void) {
     // Set up buffer pointers
     sd_read_ops[0].buffer = sd_buffers[0];
     sd_read_ops[1].buffer = sd_buffers[1];
+
+    access_mode = 0x0;
 }
 
 bool gc_mmceman_block_idle(void) {

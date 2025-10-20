@@ -323,8 +323,8 @@ static void __time_critical_func(mc_erase_sector)(void) {
 static void __time_critical_func(mc_get_dev_id)(void) {
     gc_mc_respond(0x38); // out byte 5
     gc_mc_respond(0x42); // out byte 5
-    gc_mc_respond(0xFF); // out byte 5
-    gc_mc_respond(0xFF); // out byte 5
+    gc_mc_respond(0x01); // out byte 5
+    gc_mc_respond(0x01); // out byte 5
 }
 
 /**
@@ -472,10 +472,22 @@ static void __time_critical_func(mc_block_write)(void) {
 
 static void __time_critical_func(mc_mce_cmd)(void) {
     uint8_t cmd;
+    uint8_t mode;
     gc_receiveOrNextCmd(&cmd);
     switch (cmd) {
         case MMCEMAN_GET_DEV_ID:
             mc_get_dev_id();
+            break;
+            case MMCEMAN_GET_ACCESS_MODE:
+            mode = gc_mmceman_block_get_access_mode();
+            gc_receive(&cmd); // buffer byte
+            gc_mc_respond(mode);
+            // Not implemented
+            break;
+        case MMCEMAN_SET_ACCESS_MODE:
+            gc_receive(&cmd);
+            gc_mmceman_block_set_access_mode(cmd);
+            // Not implemented
             break;
         case MMCEMAN_SET_GAME_ID:
             mc_set_game_id();
