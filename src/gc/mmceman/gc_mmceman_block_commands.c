@@ -1,6 +1,7 @@
 #include "gc_mmceman_block_commands.h"
+#include "mmceman/gc_mmceman.h"
 #include "pico/platform.h"
-#include "sd.h"
+#include "gc_cardman.h"
 #include "pico/critical_section.h"
 #include <debug.h>
 #include <stdint.h>
@@ -33,7 +34,7 @@ static sd_write_op_t sd_write_op;
 static sd_op_t sd_read_ops[2];
 
 static critical_section_t sd_ops_crit;
-static uint8_t access_mode;
+static bool sd_mode = false;
 
 static inline void swap_ops(sd_op_t* op1, sd_op_t* op2) {
     sd_op_t temp = *op1;
@@ -190,12 +191,20 @@ uint8_t* __time_critical_func(gc_mmceman_get_write_block)(void) {
     return (uint8_t*)sd_write_buffer;
 }
 
-uint8_t __time_critical_func(gc_mmceman_block_get_access_mode)(void) {
-    return access_mode;
+bool __time_critical_func(gc_mmceman_block_get_sd_mode)(void) {
+    return sd_mode;
 }
 
-void __time_critical_func(gc_mmceman_block_set_access_mode)(uint8_t mode) {
-    access_mode = mode;
+void gc_mmceman_block_set_sd_mode(bool mode) {
+    if (mode != sd_mode) {
+        sd_mode = mode;
+        mmceman_cmd = MMCEMAN_CMDS_SET_ACCESS_MODE;
+    }
+    if (mode) {
+        while (!gc_cardman_is_sd_mode())
+            tight_loop_contents();
+
+    }
 }
 
 void __time_critical_func(gc_mmceman_block_write_data)(void) {
@@ -295,7 +304,7 @@ void gc_mmceman_block_init(void) {
     sd_read_ops[0].buffer = sd_buffers[0];
     sd_read_ops[1].buffer = sd_buffers[1];
 
-    access_mode = 0x0;
+    sd_mode = false;
 }
 
 bool gc_mmceman_block_idle(void) {

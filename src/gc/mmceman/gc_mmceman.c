@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "card_emu/gc_mc_data_interface.h"
-#include "card_emu/gc_mc_internal.h"
+#include "card_emu/gc_memory_card.h"
 #include "debug.h"
 #include "hardware/timer.h"
 #include "mmceman/gc_mmceman_block_commands.h"
@@ -16,12 +16,9 @@
 #include "gui.h"
 #endif
 
-#include "gc/card_emu/gc_memory_card.h"
 #include "gc/gc_cardman.h"
 
-//#include "game_db/game_db.h"
 #include "input.h"
-#include "settings.h"
 
 #include "pico/platform.h"
 
@@ -34,8 +31,6 @@
 void (*mmceman_callback)(void);
 int mmceman_transfer_stage = 0;
 
-volatile bool mmceman_tx_queued;
-volatile uint8_t mmceman_tx_byte;
 
 volatile bool mmceman_op_in_progress = false;
 volatile bool mmceman_timeout_detected = false;
@@ -50,9 +45,8 @@ static uint64_t mmceman_switching_timeout = 0;
 
 void gc_mmceman_task(void) {
     if ((mmceman_cmd != 0) && (!gc_mc_data_interface_write_occured())) {
-
         switch (mmceman_cmd) {
-            case MMCEMAN_SET_CARD:
+            case MMCEMAN_CMDS_SET_CARD:
                 if (mmceman_mode == MMCEMAN_MODE_NUM) {
                     gc_cardman_set_idx(mmceman_cnum);
                     log(LOG_INFO, "set num idx\n");
@@ -65,7 +59,7 @@ void gc_mmceman_task(void) {
                 }
                 break;
 
-            case MMCEMAN_SET_CHANNEL:
+            case MMCEMAN_CMDS_SET_CHANNEL:
                 if (mmceman_mode == MMCEMAN_MODE_NUM) {
                     gc_cardman_set_channel(mmceman_cnum);
                     log(LOG_INFO, "set num channel\n");
@@ -78,7 +72,7 @@ void gc_mmceman_task(void) {
                 }
                 break;
 
-            case MMCEMAN_SET_GAMEID:
+            case MMCEMAN_CMDS_SET_GAMEID:
             {
                 const char* game_id;
                 const char* region;
@@ -90,11 +84,17 @@ void gc_mmceman_task(void) {
                 break;
             }
 
-            case MMCEMAN_UNMOUNT_BOOTCARD:
-                if (gc_cardman_get_idx() == 0) {
-                    gc_cardman_next_idx();
+            case MMCEMAN_CMDS_SET_ACCESS_MODE: {
+                if (gc_mmceman_block_get_sd_mode()) {
+                    gc_mc_data_interface_flush();
+                    gc_cardman_set_sd_mode(true);
+                    gui_activate_sd_mode();
+                } else {
+                    gc_cardman_set_sd_mode(false);
                 }
+                log(LOG_INFO, "%s: set access mode\n", __func__);
                 break;
+            }
 
             default: break;
         }
@@ -123,20 +123,12 @@ void gc_mmceman_task(void) {
         // open new card
         gc_cardman_open();
         gc_memory_card_enter();
-
-        //log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
     }
 }
 
 void gc_mmceman_set_cb(void (*cb)(void))
 {
     mmceman_callback = cb;
-}
-
-void __time_critical_func(gc_mmceman_queue_tx)(uint8_t byte)
-{
-    mmceman_tx_queued = true;
-    mmceman_tx_byte = byte;
 }
 
 bool __time_critical_func(gc_mmceman_set_gameid)(const uint8_t* const game_id) {
@@ -148,7 +140,7 @@ bool __time_critical_func(gc_mmceman_set_gameid)(const uint8_t* const game_id) {
         log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
         snprintf(mmceman_gameid, sizeof(mmceman_gameid), "%s", sanitized_game_id);
         mmceman_switching_timeout = 0U;
-        mmceman_cmd = MMCEMAN_SET_GAMEID;
+        mmceman_cmd = MMCEMAN_CMDS_SET_GAMEID;
         ret = true;
     }
     return ret;
@@ -164,23 +156,23 @@ const char* gc_mmceman_get_gameid(void) {
 void gc_mmceman_next_ch(bool delay) {
     mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmceman_mode = MMCEMAN_MODE_NEXT;
-    mmceman_cmd = MMCEMAN_SET_CHANNEL;
+    mmceman_cmd = MMCEMAN_CMDS_SET_CHANNEL;
 }
 
 void gc_mmceman_prev_ch(bool delay) {
     mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmceman_mode = MMCEMAN_MODE_PREV;
-    mmceman_cmd = MMCEMAN_SET_CHANNEL;
+    mmceman_cmd = MMCEMAN_CMDS_SET_CHANNEL;
 }
 
 void gc_mmceman_next_idx(bool delay) {
     mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmceman_mode = MMCEMAN_MODE_NEXT;
-    mmceman_cmd = MMCEMAN_SET_CARD;
+    mmceman_cmd = MMCEMAN_CMDS_SET_CARD;
 }
 
 void gc_mmceman_prev_idx(bool delay) {
     mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmceman_mode = MMCEMAN_MODE_PREV;
-    mmceman_cmd = MMCEMAN_SET_CARD;
+    mmceman_cmd = MMCEMAN_CMDS_SET_CARD;
 }

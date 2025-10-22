@@ -46,7 +46,7 @@ static uint64_t time_screen;
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header, *scr_sd_mode;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_card_restore, *lbl_gc_encoding,
@@ -81,7 +81,8 @@ static enum {
     UI_STATE_MAIN,
     UI_STATE_MENU,
     UI_STATE_SWITCHING,
-    UI_STATE_GAME_IMG
+    UI_STATE_GAME_IMG,
+    UI_STATE_SD_MODE
 } ui_state;
 static int current_progress;
 static bool refresh_gui;
@@ -178,7 +179,7 @@ static void update_bar(void) {
     if (current_progress / 5 == prev_progress / 5)
         return;
     prev_progress = current_progress;
-    line_points[1].x = DISPLAY_WIDTH * current_progress / 100;
+    line_points[1].x = (lv_coord_t)(DISPLAY_WIDTH * current_progress / 100);
     lv_line_set_points(g_progress_bar, line_points, 2);
 
     lv_label_set_text(g_progress_text, gc_cardman_get_progress_text());
@@ -660,19 +661,6 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
-/**
-    lv_obj_t *splash_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(splash_page, "Deploy Splash", false);
-    {
-        cont = ui_menu_cont_create(splash_page);
-        ui_label_create(cont, "Done!");
-        cont = ui_menu_cont_create(splash_page);
-
-        cont = ui_menu_cont_create_nav(splash_page);
-        ui_label_create(cont, "Back");
-        lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
-    }
-*/
     /* display / vcomh submenu */
     lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
@@ -823,8 +811,6 @@ static void create_menu_screen(void) {
     ui_menu_set_page(menu, main_page);
 }
 
-
-
 static void create_splash(void) {
     // Create the splash screen object
     scr_splash = ui_scr_create();
@@ -848,6 +834,32 @@ static void create_splash(void) {
     lv_obj_add_event_cb(scr_splash, evt_scr_main, LV_EVENT_ALL, NULL);
 }
 
+static void create_sd_mode(void) {
+        // Create the splash screen object
+    scr_sd_mode = ui_scr_create();
+
+    // Create an lv_img_dsc_t for the buffer
+    static const lv_img_dsc_t splash_img_dsc = {
+        .header.always_zero = 0,
+        .header.w = 128,
+        .header.h = 64,
+        .data_size =  sizeof(splash_img),
+        .header.cf = LV_IMG_CF_INDEXED_1BIT,
+        .data = splash_img,
+    };
+
+    // Add the image to the splash screen
+    lv_obj_t *img = lv_img_create(scr_sd_mode);
+    lv_img_set_src(img, &splash_img_dsc);
+
+    lv_obj_center(img);
+
+    ui_header_create(scr_sd_mode, "SD Mode", false);
+
+    //lv_obj_add_event_cb(scr_sd_mode, evt_scr_main, LV_EVENT_ALL, NULL);
+
+}
+
 static void create_ui(void) {
     lv_style_init(&style_inv);
     lv_style_set_bg_opa(&style_inv, LV_OPA_COVER);
@@ -863,6 +875,7 @@ static void create_ui(void) {
     create_menu_screen();
     create_cardswitch_screen();
     create_splash();
+    create_sd_mode();
 
     /* start at the splash screen */
     ui_goto_screen(scr_splash);
@@ -965,6 +978,11 @@ void gui_do_gc_card_switch(void) {
     }
 }
 
+void gui_activate_sd_mode(void) {
+    ui_state = UI_STATE_SD_MODE;
+}
+
+
 static void gui_update_state() {
     static uint32_t prev_state = UI_STATE_SPLASH;
     if (prev_state != ui_state) {
@@ -981,6 +999,9 @@ static void gui_update_state() {
                 break;
             case UI_STATE_MENU:
                 ui_goto_screen(scr_menu);
+                break;
+            case UI_STATE_SD_MODE:
+                ui_goto_screen(scr_sd_mode);
                 break;
             default:
                 break;

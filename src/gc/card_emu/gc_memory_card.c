@@ -470,44 +470,51 @@ static void __time_critical_func(mc_block_write)(void) {
     gpio_put(PIN_GC_INT, 0);
 }
 
+static void __time_critical_func(mc_block_set_accessmode)(void) {
+    uint8_t mode = 0x0;
+    gc_receive(&mode);
+    gc_mmceman_block_set_sd_mode(mode);
+
+    gpio_put(PIN_GC_INT, 0);
+}
+
 static void __time_critical_func(mc_mce_cmd)(void) {
     uint8_t cmd;
     uint8_t mode;
     gc_receiveOrNextCmd(&cmd);
     switch (cmd) {
-        case MMCEMAN_GET_DEV_ID:
+        case MCE_GET_DEV_ID:
             mc_get_dev_id();
             break;
-            case MMCEMAN_GET_ACCESS_MODE:
-            mode = gc_mmceman_block_get_access_mode();
+        case MCE_GET_ACCESS_MODE:
+            mode = gc_mmceman_block_get_sd_mode() ? 1 : 0;
             gc_receive(&cmd); // buffer byte
             gc_mc_respond(mode);
             // Not implemented
             break;
-        case MMCEMAN_SET_ACCESS_MODE:
-            gc_receive(&cmd);
-            gc_mmceman_block_set_access_mode(cmd);
+        case MCE_SET_ACCESS_MODE:
+            mc_block_set_accessmode();
             // Not implemented
             break;
-        case MMCEMAN_SET_GAME_ID:
+        case MCE_SET_GAME_ID:
             mc_set_game_id();
             break;
-        case MMCEMAN_GET_GAME_NAME:
+        case MCE_GET_GAME_NAME:
             mc_get_game_name();
             break;
-        case MMCEMAN_SET_GAME_NAME:
+        case MCE_SET_GAME_NAME:
             mc_set_game_name();
             break;
-        case MMCEMAN_CMD_BLOCK_START_READ:
+        case MCE_CMD_BLOCK_START_READ:
             mc_block_start_read();
             break;
-        case MMCEMAN_CMD_BLOCK_READ:
+        case MCE_CMD_BLOCK_READ:
             mc_block_read();
             break;
-        case MMCEMAN_CMD_BLOCK_START_WRITE:
+        case MCE_CMD_BLOCK_START_WRITE:
             mc_block_start_write();
             break;
-        case MMCEMAN_CMD_BLOCK_WRITE:
+        case MCE_CMD_BLOCK_WRITE:
             mc_block_write();
             break;
         default:
@@ -543,56 +550,52 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
 
         switch (cmd) {
-            case 0x00:
+            case GC_MC_PROBE_CMD:
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 mc_probe();
                 break;
-            case 0x52:
+            case GC_MC_READ_CMD:
                 if (card_state & 0x40)
                     gc_mc_read();
                 else
                     mc_unlock();
                 break;
-            case 0x81:
+            case GC_MC_INTERRUPT_ENABLE_CMD:
                 gc_receive(&interrupt_enable);
                 if (interrupt_enable & 0x01) {
                     // Clear interrupt
                     gpio_put(PIN_GC_INT, 1);
                 }
                 break;
-            case 0x83: // Get card state
+            case GC_MC_GET_CARD_STATE_CMD: // Get card state
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
                 break;
-            case 0x85: // Vendor ID, wii only
+            case GC_MC_VENDOR_ID_CMD: // Vendor ID, wii only
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 gc_receiveOrNextCmd(&_);
                 gc_mc_respond(0x01); // out byte 3
                 gc_mc_respond(0x01); // out byte 4
                 break;
-            case 0x89: // Clear card state
+            case GC_MC_CLEAR_CARD_STATE_CMD: // Clear card state
                 card_state &= 0x41;
                 break;
-            case 0x8B:
+            case GC_MCE_CMD_IDENTIFIER:
                 mc_mce_cmd();
                 break;
-            case 0xF1:
+            case GC_MC_ERASE_SECTOR_CMD:
                 mc_erase_sector();
                 break;
-            case 0xF2:
+            case GC_MC_WRITE_CMD:
                 gc_mc_write();
                 break;
-            case 0xF4:
+            case GC_MC_ERASE_CARD_CMD:
                 DPRINTF("ERASE CARD ");
                 break;
             default:
                 //DPRINTF("Unknown command: %02x ", cmd);
                 break;
         }
-        //if (interrupt_enable & 0x01) {
-            // Clear interrupt
-            //gpio_put(PIN_GC_INT, 1);
-        //}
     }
 }
 

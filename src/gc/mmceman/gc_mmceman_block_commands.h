@@ -14,8 +14,8 @@ extern void gc_mmceman_block_read_data(uint8_t** buffer);
 extern void gc_mmceman_block_request_write_sector(uint32_t sector, uint16_t count);
 extern void gc_mmceman_block_write_data(void);
 extern uint8_t* gc_mmceman_get_write_block(void);
-extern uint8_t gc_mmceman_block_get_access_mode(void);
-extern void gc_mmceman_block_set_access_mode(uint8_t mode);
+extern bool gc_mmceman_block_get_sd_mode(void);
+extern void gc_mmceman_block_set_sd_mode(bool mode);
 
 
 
