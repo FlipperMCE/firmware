@@ -12,10 +12,8 @@
 #include "game_db/game_db.h"
 #include "hardware/timer.h"
 
-#include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_dirty.h"
-#include "pico/types.h"
 #include "psram/psram.h"
 
 #include "sd.h"
@@ -40,8 +38,8 @@
 static int32_t segment_count = -1;
 
 
-#define SEgment_COUNT_4MB (8*1024*1024 / SEGMENT_SIZE)
-uint8_t gc_available_segments[SEgment_COUNT_4MB / 8];  // bitmap
+#define SEGMENT_COUNT_4MB (8*1024*1024 / SEGMENT_SIZE)
+uint8_t gc_available_segments[SEGMENT_COUNT_4MB / 8];  // bitmap
 
 static uint8_t flushbuf[SEGMENT_SIZE];
 int gc_cardman_fd = -1;
@@ -66,7 +64,7 @@ static uint32_t cardprog_pos;
 
 static gc_cardman_state_t cardman_state;
 
-static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE } cardman_operation;
+static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE, CARDMAN_SD } cardman_operation;
 
 static void update_encoding(void) {
     switch (cardman_state) {
@@ -150,7 +148,6 @@ static bool try_set_game_id_card() {
     if (folder_name[0] == 0x00) {
         memset(folder_name, 0x00, sizeof(folder_name));
         strlcpy(folder_name, full_id, sizeof(full_id));
-//        snprintf(folder_name, sizeof(folder_name), "DL-DOL-%c%c%c%c-%s", id[0], id[1], id[2], id[3], region);
     }
 
     return true;
@@ -484,7 +481,7 @@ void gc_cardman_open(void) {
 
     needs_update = false;
 
-    sd_init();
+    sd_init(false);
     ensuredirs();
 
     snprintf(path, sizeof(path), "%s/%s/%s-%d.raw", cardhome, folder_name, folder_name, card_chan);
@@ -727,6 +724,21 @@ bool __time_critical_func(gc_cardman_is_accessible)(void) {
 
 bool gc_cardman_is_idle(void) {
     return cardman_operation == CARDMAN_IDLE;
+}
+
+bool gc_cardman_is_sd_mode(void) {
+    return cardman_operation == CARDMAN_SD;
+}
+
+void gc_cardman_set_sd_mode(bool sd_mode) {
+    if (sd_mode) {
+        gc_cardman_close();
+        sd_unmount();
+        cardman_operation = CARDMAN_SD;
+    } else {
+        sd_init(true);
+        needs_update = true;
+    }
 }
 
 void gc_cardman_init(void) {

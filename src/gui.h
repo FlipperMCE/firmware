@@ -10,6 +10,7 @@ void gui_init(void);
 void gui_task(void);
 void gui_request_refresh(void);
 void gui_do_gc_card_switch(void);
+void gui_activate_sd_mode(void);
 
 void evt_menu_page(lv_event_t *event);
 

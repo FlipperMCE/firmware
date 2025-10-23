@@ -68,3 +68,9 @@ int sd_fd_is_open(int fd);
 uint64_t sd_filesize64(int fd);
 int sd_seek64(int fd, int64_t offset, int whence);
 uint64_t sd_tell64(int fd);
+
+bool sd_read_sector(uint32_t sector, uint8_t* dst);
+bool sd_write_sector(uint32_t sector, const uint8_t* src);
+bool sd_start_read_sectors(uint32_t sector, uint32_t count);
+bool sd_read_multi(uint8_t* dst);
+bool sd_end_read_sectors(void);

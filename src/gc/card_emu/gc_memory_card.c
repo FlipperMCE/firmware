@@ -9,6 +9,7 @@
 #include "hardware/structs/iobank0.h"
 
 #include "mmceman/gc_mmceman.h"
+#include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "gc_mc_internal.h"
@@ -19,7 +20,6 @@
 #include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 
 #if LOG_LEVEL_GC_MC == 0
 #define log(x...)
@@ -323,8 +323,8 @@ static void __time_critical_func(mc_erase_sector)(void) {
 static void __time_critical_func(mc_get_dev_id)(void) {
     gc_mc_respond(0x38); // out byte 5
     gc_mc_respond(0x42); // out byte 5
-    gc_mc_respond(0xFF); // out byte 5
-    gc_mc_respond(0xFF); // out byte 5
+    gc_mc_respond(0x01); // out byte 5
+    gc_mc_respond(0x01); // out byte 5
 }
 
 /**
@@ -356,6 +356,8 @@ static void __time_critical_func(mc_set_game_name)(void) {
 
 static void __time_critical_func(mc_get_game_name)(void) {
     uint8_t i = 0;
+    uint8_t _;
+    gc_receive(&_);
     while (name[i] != 0x00 && i < 64) {
         gc_mc_respond(name[i++]);
     }
@@ -365,23 +367,156 @@ static void __time_critical_func(mc_get_game_name)(void) {
     gc_mc_respond(0x00);
 }
 
+static void __time_critical_func(mc_block_start_read)(void) {
+    uint8_t sector[4] = {};
+    uint8_t count[2] = {};
+    uint32_t *sec_u32 = (uint32_t *)sector;
+    uint16_t *count_u16 = (uint16_t *)count;
+
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&sector[i]);
+    }
+    for (int i = 1; i >= 0; i--) {
+        gc_receive(&count[i]);
+    }
+
+    gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
+    interrupt_enable = 0x01;
+    while (!gc_mmceman_block_data_ready()) {
+        tight_loop_contents();
+    }
+
+
+    gpio_put(PIN_GC_INT, 0);
+    //sleep_us(50);
+     /*
+    for (uint32_t block_cnt = 0; block_cnt < *count_u32; block_cnt++) {
+        gc_mc_respond(0xFF); // out byte 1-2
+        gc_mc_respond(0xFF);
+        while (!reset) {
+        }
+        reset = 0;
+        gc_card_active = true;
+        log(LOG_WARN, "SELECT\n");
+        gpio_put(PIN_GC_INT, 1);
+        uint32_t i = 0;
+
+        for (i = 0; (i < 512) && (gc_card_active); i++) {
+            //gc_mc_respond(buffer[i]);
+            gc_mc_respond(i);
+        }
+        if (i < 512) {
+            log(LOG_WARN, "Card deselected during block read at pos %d\n", i);
+            break;
+        }
+
+        gc_mmceman_block_swap_in_next();
+        log(LOG_WARN, "Block read swap done\n");
+        while (!gc_mmceman_block_data_ready()) {
+            tight_loop_contents();
+        }
+
+        log(LOG_WARN, "Block read data %d\n", block_cnt + 1);
+        gc_mmceman_block_read_data(&buffer);
+        gpio_put(PIN_GC_INT, 0);
+    }*/
+}
+
+static void __time_critical_func(mc_block_read)(void) {
+    uint8_t _;
+    uint8_t* buffer;
+    gc_mmceman_block_read_data(&buffer);
+    gc_receive(&_);
+
+    for (int i = 0; i < 512; i++) {
+        gc_mc_respond(buffer[i]);
+    }
+    gc_mmceman_block_swap_in_next();
+
+    while (!gc_mmceman_block_data_ready()) {
+        if (mc_exit_request) return;
+    }
+
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_start_write)(void) {
+    uint8_t sector[4] = {};
+    uint8_t count[4] = {};
+    uint32_t *sec_u32 = (uint32_t *)sector;
+    uint16_t *count_u16 = (uint16_t *)count;
+    for (int i = 3; i >= 0; i--) {
+        gc_receive(&sector[i]);
+    }
+    for (int i = 1; i >= 0; i--) {
+        gc_receive(&count[i]);
+    }
+    log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u16);
+    gc_mmceman_block_request_write_sector(*sec_u32, *count_u16);
+
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_write)(void) {
+    uint8_t* buffer = gc_mmceman_get_write_block();
+    for (int i = 0; i < 512; i++) {
+        gc_receiveOrNextCmd(&buffer[i]);
+    }
+    gc_mmceman_block_write_data();
+    while (!reset) {
+        tight_loop_contents();
+    }
+    log(LOG_WARN, "Block write done\n");
+    gpio_put(PIN_GC_INT, 0);
+}
+
+static void __time_critical_func(mc_block_set_accessmode)(void) {
+    uint8_t mode = 0x0;
+    gc_receive(&mode);
+    gc_mmceman_block_set_sd_mode(mode);
+
+    gpio_put(PIN_GC_INT, 0);
+}
+
 static void __time_critical_func(mc_mce_cmd)(void) {
     uint8_t cmd;
+    uint8_t mode;
     gc_receiveOrNextCmd(&cmd);
     switch (cmd) {
-        case 0x00:
+        case MCE_GET_DEV_ID:
             mc_get_dev_id();
             break;
-        case 0x11:
+        case MCE_GET_ACCESS_MODE:
+            mode = gc_mmceman_block_get_sd_mode() ? 1 : 0;
+            gc_receive(&cmd); // buffer byte
+            gc_mc_respond(mode);
+            // Not implemented
+            break;
+        case MCE_SET_ACCESS_MODE:
+            mc_block_set_accessmode();
+            // Not implemented
+            break;
+        case MCE_SET_GAME_ID:
             mc_set_game_id();
             break;
-        case 0x12:
+        case MCE_GET_GAME_NAME:
             mc_get_game_name();
             break;
-        case 0x13:
+        case MCE_SET_GAME_NAME:
             mc_set_game_name();
             break;
-
+        case MCE_CMD_BLOCK_START_READ:
+            mc_block_start_read();
+            break;
+        case MCE_CMD_BLOCK_READ:
+            mc_block_read();
+            break;
+        case MCE_CMD_BLOCK_START_WRITE:
+            mc_block_start_write();
+            break;
+        case MCE_CMD_BLOCK_WRITE:
+            mc_block_write();
+            break;
         default:
             DPRINTF("MCE: Unknown command: %02x ", cmd);
             break;
@@ -398,10 +533,12 @@ static void __time_critical_func(mc_main_loop)(void) {
         res = 0;
 
         while (!reset) {}; // Wait for reset
+        gpio_put(PIN_GC_INT, 1);
 
         reset = 0;
 
         res = gc_receiveFirst(&cmd);
+
         if (res != RECEIVE_OK) {
             if (res == RECEIVE_RESET) {
                 continue;
@@ -413,55 +550,51 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
 
         switch (cmd) {
-            case 0x00:
+            case GC_MC_PROBE_CMD:
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 mc_probe();
                 break;
-            case 0x52:
+            case GC_MC_READ_CMD:
                 if (card_state & 0x40)
                     gc_mc_read();
                 else
                     mc_unlock();
                 break;
-            case 0x81:
+            case GC_MC_INTERRUPT_ENABLE_CMD:
                 gc_receive(&interrupt_enable);
                 if (interrupt_enable & 0x01) {
                     // Clear interrupt
                     gpio_put(PIN_GC_INT, 1);
                 }
                 break;
-            case 0x83: // Get card state
+            case GC_MC_GET_CARD_STATE_CMD: // Get card state
                 // GC is already transferring second byte - we need to respond with 3rd byte
                 gc_mc_respond(card_state);
                 break;
-            case 0x85: // Vendor ID, wii only
+            case GC_MC_VENDOR_ID_CMD: // Vendor ID, wii only
                 //gc_mc_respond(0xFF); // <-- this is second byte of the response already
                 gc_receiveOrNextCmd(&_);
                 gc_mc_respond(0x01); // out byte 3
                 gc_mc_respond(0x01); // out byte 4
                 break;
-            case 0x89: // Clear card state
+            case GC_MC_CLEAR_CARD_STATE_CMD: // Clear card state
                 card_state &= 0x41;
                 break;
-            case 0x8B:
+            case GC_MCE_CMD_IDENTIFIER:
                 mc_mce_cmd();
                 break;
-            case 0xF1:
+            case GC_MC_ERASE_SECTOR_CMD:
                 mc_erase_sector();
                 break;
-            case 0xF2:
+            case GC_MC_WRITE_CMD:
                 gc_mc_write();
                 break;
-            case 0xF4:
+            case GC_MC_ERASE_CARD_CMD:
                 DPRINTF("ERASE CARD ");
                 break;
             default:
-                DPRINTF("Unknown command: %02x ", cmd);
+                //DPRINTF("Unknown command: %02x ", cmd);
                 break;
-        }
-        if (interrupt_enable & 0x01) {
-            // Clear interrupt
-            gpio_put(PIN_GC_INT, 1);
         }
     }
 }
@@ -536,6 +669,7 @@ void gc_memory_card_main(void) {
     init_pio();
     gpio_set_dir(PIN_GC_INT, true);
     gpio_put(PIN_GC_INT, 1);
+    gpio_set_drive_strength(PIN_GC_INT, GPIO_DRIVE_STRENGTH_12MA);
 
     gc_us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");
