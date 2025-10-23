@@ -41,6 +41,7 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
+
 static uint64_t time_screen;
 
 /* Displays the line at the bottom for long pressing buttons */
@@ -843,9 +844,9 @@ static void create_sd_mode(void) {
         .header.always_zero = 0,
         .header.w = 128,
         .header.h = 64,
-        .data_size =  sizeof(splash_img),
+        .data_size =  sizeof(sd_mode_image),
         .header.cf = LV_IMG_CF_INDEXED_1BIT,
-        .data = splash_img,
+        .data = sd_mode_image,
     };
 
     // Add the image to the splash screen
@@ -854,9 +855,7 @@ static void create_sd_mode(void) {
 
     lv_obj_center(img);
 
-    ui_header_create(scr_sd_mode, "SD Mode", false);
-
-    //lv_obj_add_event_cb(scr_sd_mode, evt_scr_main, LV_EVENT_ALL, NULL);
+    // Add event for manually returning to normal ops
 
 }
 
