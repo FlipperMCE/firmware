@@ -4,11 +4,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "hardware/timer.h"
 #include "pico/critical_section.h"
-#include "pico/multicore.h"
 #include "pico/platform.h"
-#include "pico/time.h"
 #include "gc_mc_data_interface.h"
 #include "bigmem.h"
 
@@ -125,10 +122,10 @@ void __time_critical_func(gc_mc_data_interface_erase)(uint32_t page) {
         gc_dirty_lockout_renew();
         gc_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
-            psram_write_dma(page + (i * GC_PAGE_SIZE), erasebuff, GC_PAGE_SIZE, NULL);
+            psram_write_dma(page + (uint32_t)(i * GC_PAGE_SIZE), erasebuff, GC_PAGE_SIZE, NULL);
             psram_wait_for_dma();
-            gc_cardman_mark_segment_available(page + (i * GC_PAGE_SIZE));
-            gc_dirty_mark(page/GC_PAGE_SIZE + i);
+            gc_cardman_mark_segment_available(page + (uint32_t)(i * GC_PAGE_SIZE));
+            gc_dirty_mark((uint32_t)(page/GC_PAGE_SIZE + i));
         }
         gc_dirty_unlock();
     }

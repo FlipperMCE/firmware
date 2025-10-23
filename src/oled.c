@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "config.h"
 #include "settings.h"
 #include "ssd1306.h"
@@ -40,7 +41,7 @@ void oled_clear(void) {
 }
 
 void oled_draw_pixel(int x, int y) {
-    ssd1306_draw_pixel(&oled_disp, x, y);
+    ssd1306_draw_pixel(&oled_disp, (uint32_t)x, (uint32_t)y);
 }
 
 void oled_show(void) {

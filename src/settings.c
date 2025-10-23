@@ -75,7 +75,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
             case 16:
             case 32:
             case 64:
-                _s->gc_cardsize = size;
+                _s->gc_cardsize = (uint8_t)size;
                 break;
             default:
                 break;
@@ -131,21 +131,21 @@ static void settings_serialize(void) {
     if (fd >= 0) {
         printf("Serializing Settings\n");
         char line_buffer[256] = { 0x0 };
-        int written = snprintf(line_buffer, 256, "[General]\n");
+        size_t written = (size_t)snprintf(line_buffer, 256, "[General]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
+        written = (size_t)snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "ShowInfo=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0) ? "ON" : "OFF");
+        written = (size_t)snprintf(line_buffer, 256, "ShowInfo=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_SHOW_INFO) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "[GC]\n");
+        written = (size_t)snprintf(line_buffer, 256, "[GC]\n");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "CardRestore=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0) ? "ON" : "OFF");
+        written = (size_t)snprintf(line_buffer, 256, "CardRestore=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_CARD_RESTORE) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
+        written = (size_t)snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "JAP" : "WORLD");
+        written = (size_t)snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "JAP" : "WORLD");
         sd_write(fd, line_buffer, written);
-        written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
+        written = (size_t)snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
         sd_write(fd, line_buffer, written);
 
         sd_close(fd);
@@ -169,7 +169,7 @@ static void settings_reset(void) {
 }
 
 void settings_load_sd(void) {
-    sd_init();
+    sd_init(false);
     if (sd_exists(settings_path)) {
         printf("Reading settings from %s\n", settings_path);
         settings_deserialize();
@@ -199,7 +199,7 @@ void settings_init(void) {
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
     if (multicore_lockout_victim_is_initialized(1))
        multicore_lockout_start_blocking();
-    wear_leveling_write((uint8_t*)settings_ptr - (uint8_t*)&settings, settings_ptr, sz);
+    wear_leveling_write((uint32_t)((uint8_t*)settings_ptr - (uint8_t*)&settings), settings_ptr, sz);
     if (multicore_lockout_victim_is_initialized(1))
         multicore_lockout_end_blocking();
     settings_serialize();
@@ -235,14 +235,14 @@ uint8_t settings_get_gc_cardsize(void) {
 
 void settings_set_gc_card(int card) {
     if (card != settings.gc_card) {
-        settings.gc_card = card;
+        settings.gc_card = (uint16_t)card;
         SETTINGS_UPDATE_FIELD(gc_card);
     }
 }
 
 void settings_set_gc_channel(int chan) {
     if (chan != settings.gc_channel) {
-        settings.gc_channel = chan;
+        settings.gc_channel = (uint8_t)chan;
         SETTINGS_UPDATE_FIELD(gc_channel);
     }
 }

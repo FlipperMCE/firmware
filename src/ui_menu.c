@@ -683,7 +683,7 @@ static void ui_menu_load_page_event_cb(lv_event_t * e)
     /* save selected_item for current menu page so that when we go back it's preserved */
     lv_obj_t *parent_page = lv_obj_get_parent(obj);
     LV_ASSERT_OBJ(parent_page, &ui_menu_page_class);
-    ((ui_menu_page_t*)parent_page)->selected_item = lv_obj_get_index(obj);
+    ((ui_menu_page_t*)parent_page)->selected_item = (uint8_t)lv_obj_get_index(obj);
 
     if(menu->sidebar_page != NULL) {
         /* Check if clicked obj is in the sidebar */

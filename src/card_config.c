@@ -1,5 +1,4 @@
 #include "card_config.h"
-#include "settings.h"
 #include "sd.h"
 #include "debug.h"
 
@@ -73,7 +72,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
         }
     } else if (MATCH("Settings", "MaxChannels")) {
         uint8_t max_channels = (uint8_t)atoi(value);
-        if (max_channels > 0 && max_channels <= UINT8_MAX) {
+        if (max_channels > 0) {
             ctx->max_channels = max_channels;
         }
     }
