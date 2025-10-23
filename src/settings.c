@@ -169,7 +169,7 @@ static void settings_reset(void) {
 }
 
 void settings_load_sd(void) {
-    sd_init();
+    sd_init(false);
     if (sd_exists(settings_path)) {
         printf("Reading settings from %s\n", settings_path);
         settings_deserialize();

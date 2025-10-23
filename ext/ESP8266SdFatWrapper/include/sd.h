@@ -41,7 +41,8 @@ typedef struct sd_file_stat_t {
     bool writable;
 } sd_file_stat_t;
 
-void sd_init(void);
+void sd_init(bool reinit);
+void sd_unmount(void);
 int sd_open(const char *path, int oflag);
 int sd_close(int fd);
 void sd_flush(int fd);
@@ -74,3 +75,11 @@ bool sd_write_sector(uint32_t sector, const uint8_t* src);
 bool sd_start_read_sectors(uint32_t sector, uint32_t count);
 bool sd_read_multi(uint8_t* dst);
 bool sd_end_read_sectors(void);
+
+/**
+ * Force a sync of the SD card cache to ensure all pending writes are committed
+ * Note: This must only be called from Core 0
+ *
+ * @return true if sync successful, false if error
+ */
+bool sd_sync_cache(void);
