@@ -394,6 +394,7 @@ static void gc_cardman_continue(void) {
             if (segment_idx == -1) {
                 gc_dirty_unlock();
                 cardman_operation = CARDMAN_IDLE;
+                uint64_t end = time_us_64();
 
                 log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (double)(end - cardprog_start) / 1e6,
                     1000000.0 * card_size / (double)(end - cardprog_start) / 1024);
@@ -440,6 +441,7 @@ static void gc_cardman_continue(void) {
                 log(LOG_INFO, "OK!\n");
 
                 cardman_operation = CARDMAN_IDLE;
+                uint64_t end = time_us_64();
 
                 log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (double)(end - cardprog_start) / 1e6,
                     1000000.0 * card_size / (double)(end - cardprog_start) / 1024);
