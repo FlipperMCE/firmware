@@ -6,6 +6,7 @@
 #include <debug.h>
 #include <stdint.h>
 #include <string.h>
+#include "sd.h"
 
 // Size of each block for SD card operations (must match GameCube memory card spec)
 #define SD_BLOCK_SIZE 512
@@ -74,6 +75,7 @@ void __time_critical_func(gc_mmceman_block_request_read_sector)(uint32_t sector,
 
     critical_section_enter_blocking(&sd_ops_crit);
     read_sectors_remaining = count;
+    memset(&sd_write_op, 0, sizeof(sd_write_op_t));
 
     // Check if block is already in position 0
     if (is_block_ready(&sd_read_ops[0], sector)
@@ -174,6 +176,8 @@ void __time_critical_func(gc_mmceman_block_request_write_sector)(uint32_t sector
     if (count == 0) return;
 
     critical_section_enter_blocking(&sd_ops_crit);
+    read_sectors_remaining = 0;
+
     sd_write_op.start_block = sector;
     sd_write_op.block_count = count;
     sd_write_op.blocks_written = 0;
@@ -207,11 +211,32 @@ void gc_mmceman_block_set_sd_mode(bool mode) {
     }
 }
 
+
+bool gc_mmceman_block_read_idle(void)
+{
+    bool ret = false;
+    critical_section_enter_blocking(&sd_ops_crit);
+    ret = (read_sectors_remaining == 0);
+    critical_section_exit(&sd_ops_crit);
+    return ret;
+}
+
+bool gc_mmceman_block_write_idle(void)
+{
+    bool ret = false;
+    critical_section_enter_blocking(&sd_ops_crit);
+    ret = (sd_write_op.block_count == sd_write_op.blocks_written);
+    critical_section_exit(&sd_ops_crit);
+    return ret;
+}
+
 void __time_critical_func(gc_mmceman_block_write_data)(void) {
     critical_section_enter_blocking(&sd_ops_crit);
-    if (sd_write_op.request == 0 && sd_write_op.result == 0) {
-        sd_write_op.result = 0; // Reset result before writing
-        sd_write_op.request = 1; // Mark data as ready to be written
+    if (sd_write_op.block_count > sd_write_op.blocks_written) {
+        if (sd_write_op.request == 0 && sd_write_op.result == 0) {
+            sd_write_op.result = 0; // Reset result before writing
+            sd_write_op.request = 1; // Mark data as ready to be written
+        }
     }
     critical_section_exit(&sd_ops_crit);
 
@@ -261,8 +286,8 @@ static void gc_mmceman_block_write_task(void) {
     }
     critical_section_exit(&sd_ops_crit);
     if (write_req) {
-        bool write_success = sd_write_sector(block_num, sd_write_buffer);
-        DPRINTF("Write sector %u %s\n", block_num, write_success ? "successful": "failed");
+        bool write_success = sd_write_sector(block_num, (uint8_t*)sd_write_buffer);
+        //DPRINTF("Write sector %u %s\n", block_num, write_success ? "successful": "failed");
 
         if (write_success) {
             critical_section_enter_blocking(&sd_ops_crit);

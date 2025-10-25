@@ -43,6 +43,7 @@ uint8_t card_state;
 
 static dma_channel_config dma_wait_config, dma_write_config;
 static uint8_t _;
+static bool req_int = false;
 
 
 static int memcard_running;
@@ -263,7 +264,7 @@ static void __time_critical_func(gc_mc_read)(void) {
         gc_mc_respond(page->data[i]);
     }
 
-    DPRINTF("R: %08x / %i \n", offset_u32, i);
+    //DPRINTF("R: %08x / %i \n", offset_u32, i);
 }
 
 
@@ -283,7 +284,7 @@ static void __time_critical_func(gc_mc_write)(void) {
     dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, &data[0], &pio0->rxf[cmd_reader.sm], 128, true);
 
     offset_u32 = (offset[3] << 17) | (offset[2] << 9) | (offset[1] << 7) | (offset[0] & 0x7F);
-    DPRINTF("W: %08x / %u\n",offset_u32, 128);
+    //DPRINTF("W: %08x / %u\n",offset_u32, 128);
 
     while (dma_channel_is_busy(DMA_WRITE_CHAN)) {}; // Wait for DMA to complete
     gc_mc_data_interface_write_mc(offset_u32, data, 128);
@@ -309,7 +310,7 @@ static void __time_critical_func(mc_erase_sector)(void) {
 
     offset_u32 = ((page[1] << 17) | (page[0] << 9));
     gc_mc_data_interface_erase(offset_u32);
-    DPRINTF("E: %08x\n", offset_u32);
+//    DPRINTF("E: %08x\n", offset_u32);
 
     card_state |= 0x06; // Set card state to 0x06 (write done)
 
@@ -340,6 +341,7 @@ static void __time_critical_func(mc_set_game_id)(void) {
         gc_receive(&id[i]);
     }
     gc_mmceman_set_gameid(id);
+    log(LOG_INFO, "Set Game ID: %.10s\n", id);
 }
 
 static uint8_t name[65] = { 0x00 };
@@ -351,6 +353,7 @@ static void __time_critical_func(mc_set_game_name)(void) {
         }
     }
     name[64] = 0x00;
+    log(LOG_INFO, "Set Game Name: %s\n", name);
     //DPRINTF("NAME: %s\n", name);
 }
 
@@ -365,6 +368,7 @@ static void __time_critical_func(mc_get_game_name)(void) {
         gc_mc_respond(0x00);
     }
     gc_mc_respond(0x00);
+    log(LOG_INFO, "Get Game Name: %s\n", name);
 }
 
 static void __time_critical_func(mc_block_start_read)(void) {
@@ -382,6 +386,7 @@ static void __time_critical_func(mc_block_start_read)(void) {
 
     gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
     interrupt_enable = 0x01;
+    log(LOG_INFO, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u16);
     while (!gc_mmceman_block_data_ready()) {
         tight_loop_contents();
     }
@@ -431,28 +436,34 @@ static void __time_critical_func(mc_block_read)(void) {
     for (int i = 0; i < 512; i++) {
         gc_mc_respond(buffer[i]);
     }
+    log(LOG_INFO, "Block read data sent\n");
     gc_mmceman_block_swap_in_next();
 
     while (!gc_mmceman_block_data_ready()) {
         if (mc_exit_request) return;
     }
 
-    gpio_put(PIN_GC_INT, 0);
+    if (!gc_mmceman_block_read_idle()) {
+        gpio_put(PIN_GC_INT, 0);
+    }
 }
 
 static void __time_critical_func(mc_block_start_write)(void) {
     uint8_t sector[4] = {};
     uint8_t count[4] = {};
     uint32_t *sec_u32 = (uint32_t *)sector;
-    uint16_t *count_u16 = (uint16_t *)count;
+    uint16_t count_u16 = 0;
     for (int i = 3; i >= 0; i--) {
         gc_receive(&sector[i]);
     }
-    for (int i = 1; i >= 0; i--) {
-        gc_receive(&count[i]);
+    gc_receive(&count[0]);
+    gc_receive(&count[1]);
+    count_u16 = (uint16_t)(((uint16_t)count[0] << 8) | count[1]);
+    while (!gc_mmceman_block_write_idle()) {
+        tight_loop_contents();
     }
-    log(LOG_WARN, "Block write start: sector=%u count=%u\n", *sec_u32, *count_u16);
-    gc_mmceman_block_request_write_sector(*sec_u32, *count_u16);
+    log(LOG_INFO, "Block write start: sector=%u count=%u\n", *sec_u32, count_u16);
+    gc_mmceman_block_request_write_sector(*sec_u32, count_u16);
 
     gpio_put(PIN_GC_INT, 0);
 }
@@ -462,11 +473,13 @@ static void __time_critical_func(mc_block_write)(void) {
     for (int i = 0; i < 512; i++) {
         gc_receiveOrNextCmd(&buffer[i]);
     }
+    log(LOG_INFO, "Received block data for write\n");
     gc_mmceman_block_write_data();
     while (!reset) {
         tight_loop_contents();
     }
-    log(LOG_WARN, "Block write done\n");
+    log(LOG_INFO, "Block write done\n");
+
     gpio_put(PIN_GC_INT, 0);
 }
 
@@ -474,8 +487,12 @@ static void __time_critical_func(mc_block_set_accessmode)(void) {
     uint8_t mode = 0x0;
     gc_receive(&mode);
     gc_mmceman_block_set_sd_mode(mode);
+    log(LOG_INFO, "Set access mode: %u\n", mode);
 
-    gpio_put(PIN_GC_INT, 0);
+    if (mode == 1)
+        gpio_put(PIN_GC_INT, 0);
+    else
+        req_int = true;
 }
 
 static void __time_critical_func(mc_mce_cmd)(void) {
@@ -490,11 +507,10 @@ static void __time_critical_func(mc_mce_cmd)(void) {
             mode = gc_mmceman_block_get_sd_mode() ? 1 : 0;
             gc_receive(&cmd); // buffer byte
             gc_mc_respond(mode);
-            // Not implemented
+            log(LOG_INFO, "Get access mode: %u\n", mode);
             break;
         case MCE_SET_ACCESS_MODE:
             mc_block_set_accessmode();
-            // Not implemented
             break;
         case MCE_SET_GAME_ID:
             mc_set_game_id();
@@ -610,6 +626,10 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 
         reset_pio();
         gpio_put(PIN_MC_CONNECTED, 1);
+        if (req_int) {
+            req_int = false;
+            gpio_put(PIN_GC_INT, 0);
+        }
         mc_main_loop();
         gpio_put(PIN_MC_CONNECTED, 0);
         log(LOG_TRACE, "%s exit\n", __func__);

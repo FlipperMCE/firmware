@@ -16,6 +16,8 @@ extern void gc_mmceman_block_write_data(void);
 extern uint8_t* gc_mmceman_get_write_block(void);
 extern bool gc_mmceman_block_get_sd_mode(void);
 extern void gc_mmceman_block_set_sd_mode(bool mode);
+extern bool gc_mmceman_block_read_idle(void);
+extern bool gc_mmceman_block_write_idle(void);
 
 
 
