@@ -103,6 +103,7 @@ void gc_mmceman_task(void) {
     }
 
     if (gc_cardman_needs_update()
+        && (!gc_mmceman_block_get_sd_mode())
         && (mmceman_switching_timeout < time_us_64())
         && !input_is_any_down()) {
 
