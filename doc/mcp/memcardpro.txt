@@ -24,6 +24,9 @@ Request:  0x8B 02 aa
 Response: 0xXX XX XX
 
 Raises a EXI interrupt once internal processes have completed.
+When in exclusive read/write mode, memory card emulators must unmount all filesystems present on the storage medium.
+When in read-only mode, memory card emulators may remount filesystems and process pending operations.
+If a read/write operation from the host system is currently in progress, it must be aborted.
 
 
 Command:  Get disc ID
@@ -94,7 +97,7 @@ Response: 0xXX XX XX aa ...
 
 a: Block data, 512 bytes
 
-Raises a EXI interrupt when ready to read next block.
+Raises a EXI interrupt when ready to read next block until the last block.
 Data is undefined if a read multiple block command isn't in progress.
 Must support 27 MHz operation.
 
@@ -117,7 +120,7 @@ Response: 0xXX XX XX ...
 
 a: Block data, 512 bytes
 
-Raises a EXI interrupt when ready to write next block.
+Raises a EXI interrupt when ready to write next block, or if on the last block, when the write has completed.
 Data is ignored if a write multiple block command isn't in progress.
 Must support 27 MHz operation.
 
