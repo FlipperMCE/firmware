@@ -534,7 +534,7 @@ void gc_cardman_open(void) {
                 break;
             default:
                 sd_close(gc_cardman_fd);
-//                sd_remove(path);
+
                 fatal("invalid card size %u", card_size);
         }
 
@@ -707,10 +707,6 @@ gc_cardman_state_t gc_cardman_get_state(void) {
 
 int gc_cardman_get_card_enc(void) {
     return card_enc;
-}
-
-void gc_cardman_force_update(void) {
-    needs_update = true;
 }
 
 
