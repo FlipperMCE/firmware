@@ -393,38 +393,6 @@ static void __time_critical_func(mc_block_start_read)(void) {
 
 
     gpio_put(PIN_GC_INT, 0);
-    //sleep_us(50);
-     /*
-    for (uint32_t block_cnt = 0; block_cnt < *count_u32; block_cnt++) {
-        gc_mc_respond(0xFF); // out byte 1-2
-        gc_mc_respond(0xFF);
-        while (!reset) {
-        }
-        reset = 0;
-        gc_card_active = true;
-        log(LOG_WARN, "SELECT\n");
-        gpio_put(PIN_GC_INT, 1);
-        uint32_t i = 0;
-
-        for (i = 0; (i < 512) && (gc_card_active); i++) {
-            //gc_mc_respond(buffer[i]);
-            gc_mc_respond(i);
-        }
-        if (i < 512) {
-            log(LOG_WARN, "Card deselected during block read at pos %d\n", i);
-            break;
-        }
-
-        gc_mmceman_block_swap_in_next();
-        log(LOG_WARN, "Block read swap done\n");
-        while (!gc_mmceman_block_data_ready()) {
-            tight_loop_contents();
-        }
-
-        log(LOG_WARN, "Block read data %d\n", block_cnt + 1);
-        gc_mmceman_block_read_data(&buffer);
-        gpio_put(PIN_GC_INT, 0);
-    }*/
 }
 
 static void __time_critical_func(mc_block_read)(void) {
