@@ -78,8 +78,7 @@ Possible values are:
 
 There are some configuration values that can be modified on a per card base within a config file named  `CardX.ini` in a card folder, where `X` is the card index.
 
-*Note 1: The BOOT folder should contain a file named `BootCard.ini`*
-*Note 2: Make sure there is an empty line at the end of the ini file.*
+*Note: Make sure there is an empty line at the end of the ini file.*
 
 ```ini
 [ChannelName]
@@ -95,6 +94,29 @@ There are some configuration values that can be modified on a per card base with
 MaxChannels=8
 CardSize=8
 ```
+
+### Card splashes
+
+Add a splash image that the device shows in the card browser. Use the included splash generator (`misc/splashgen.html`) to convert a source image to the device `.bin` format, then place the generated file in the card folder on your SD card.
+
+Naming and behavior
+- Folder-level splash (default for the folder):
+    - Path: `MemoryCards/GC/<card_folder>/<card_folder>.bin`
+    - Example: `MemoryCards/GC/SuperGame/SuperGame.bin` — used when no channel-specific image exists.
+- Channel-specific splash (overrides folder-level for that channel):
+    - Path: `MemoryCards/GC/<card_folder>/<card_folder>-<channel_number>.bin`
+    - Example: `MemoryCards/GC/SuperGame/SuperGame-1.bin` — shown only for channel 1 of that card folder.
+- Fallback rules:
+    - If a channel-specific file exists it is used.
+    - Otherwise the folder-level `<card_folder>.bin` is used.
+    - If neither exists, no splash is shown.
+
+Practical notes
+- `<channel_number>` matches the on-device channel index (1..N).
+- Filenames must match exactly; FAT SD cards are usually case-insensitive but keep names consistent.
+- Use `misc/splashgen.html` to produce correctly-sized and packed `.bin` files for the OLED.
+- Keep names short — very long filenames may cause display or performance issues.
+- Store splash `.bin` files alongside that card's `CardX.ini` and save data in the same folder.
 
 ## Known issues
 
