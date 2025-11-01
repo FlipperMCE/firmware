@@ -19,28 +19,6 @@
 /** Others write permission */
 #define FIO_S_IWOTH 0x0002
 
-typedef struct gc_fileio_stat_t
-{
-    unsigned int mode;
-    unsigned int attr;
-    unsigned int size;
-    unsigned char ctime[8];
-    unsigned char atime[8];
-    unsigned char mtime[8];
-    unsigned int hisize;
-} gc_fileio_stat_t;
-
-typedef struct sd_file_stat_t {
-    size_t size;
-    uint16_t adate;
-    uint16_t atime;
-    uint16_t cdate;
-    uint16_t ctime;
-    uint16_t mdate;
-    uint16_t mtime;
-    bool writable;
-} sd_file_stat_t;
-
 void sd_init(bool reinit);
 void sd_unmount(void);
 int sd_open(const char *path, int oflag);
@@ -50,16 +28,12 @@ int sd_read(int fd, void *buf, size_t count);
 int sd_write(int fd, void *buf, size_t count);
 int sd_seek(int fd, int32_t offset, int whence);
 uint32_t sd_tell(int fd);
-int sd_getStat(int fd, sd_file_stat_t* const sd_stat);
 
 int sd_filesize(int fd);
 int sd_mkdir(const char *path);
 int sd_exists(const char *path);
 
 int sd_remove(const char* path);
-int sd_rmdir(const char* path);
-
-int sd_get_stat(int fd, gc_fileio_stat_t* const ps2_fileio_stat);
 
 int sd_iterate_dir(int dir, int it);
 size_t sd_get_name(int fd, char* name, size_t size);
@@ -72,9 +46,6 @@ uint64_t sd_tell64(int fd);
 
 bool sd_read_sector(uint32_t sector, uint8_t* dst);
 bool sd_write_sector(uint32_t sector, const uint8_t* src);
-bool sd_start_read_sectors(uint32_t sector, uint32_t count);
-bool sd_read_multi(uint8_t* dst);
-bool sd_end_read_sectors(void);
 
 /**
  * Force a sync of the SD card cache to ensure all pending writes are committed

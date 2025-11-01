@@ -189,14 +189,6 @@ extern "C" bool sd_is_dir(int fd) {
     return files[fd].isDirectory();
 }
 
-extern "C" int sd_fd_is_open(int fd) {
-    CHECK_FD(fd);
-    return 0;
-}
-
-extern "C" int sd_rename(const char* old_path, const char* new_path) {
-    return sd.rename(old_path, new_path) != true;
-}
 
 extern "C" bool sd_read_sector(uint32_t sector, uint8_t* dst) {
     while (sd.card()->isBusy()) {
