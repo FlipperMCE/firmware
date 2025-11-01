@@ -8,16 +8,6 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-/** Symbolic link */
-#define FIO_S_IFLNK 0x4000
-/** Regular file */
-#define FIO_S_IFREG 0x2000
-/** Directory */
-#define FIO_S_IFDIR 0x1000
-/** Others read permission */
-#define FIO_S_IROTH 0x0004
-/** Others write permission */
-#define FIO_S_IWOTH 0x0002
 
 void sd_init(bool reinit);
 void sd_unmount(void);
