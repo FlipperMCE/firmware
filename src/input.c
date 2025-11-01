@@ -1,15 +1,12 @@
 #include "input.h"
 
-#include <inttypes.h>
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 
 #include "config.h"
 
 #if WITH_GUI
-#include "gui.h"
 #include "oled.h"
-#include "lvgl.h"
 #endif
 
 #define HOLD_START_MS 250
@@ -42,7 +39,7 @@ static void input_scan(void) {
             debounce = 1;
             debounce_start = time_us_64();
         }
-        buttons[i].raw = state;
+        buttons[i].raw = (uint8_t)state;
     }
 
     /* if no pin changes within the debounce interval, commit these changes to pin_state */
@@ -127,9 +124,9 @@ void input_update_display(lv_obj_t *line) {
 
                 if (i == 1) {
                     line_points[0].x = 0;
-                    line_points[1].x = end;
+                    line_points[1].x = (int16_t)end;
                 } else {
-                    line_points[0].x = DISPLAY_WIDTH - end - 1;
+                    line_points[0].x = (int16_t)(DISPLAY_WIDTH - end - 1);
                     line_points[1].x = DISPLAY_WIDTH - 1;
                 }
                 lv_obj_clear_flag(line, LV_OBJ_FLAG_HIDDEN);

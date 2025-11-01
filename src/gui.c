@@ -7,6 +7,7 @@
 #include <gc/card_emu/gc_mc_data_interface.h>
 #include <gc/gc_cardman.h>
 
+#include <src/core/lv_disp.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
 #include <src/core/lv_obj_style.h>
@@ -40,12 +41,13 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
-static uint64_t time_start;
+
+static uint64_t time_screen;
 
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header, *scr_sd_mode;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_info_lbl, *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_gc_card_restore, *lbl_gc_encoding,
@@ -75,7 +77,14 @@ static struct {
 } vcomh_options[3];
 
 static int have_oled;
-static bool waiting_card;
+static enum {
+    UI_STATE_SPLASH,
+    UI_STATE_MAIN,
+    UI_STATE_MENU,
+    UI_STATE_SWITCHING,
+    UI_STATE_GAME_IMG,
+    UI_STATE_SD_MODE
+} ui_state;
 static int current_progress;
 static bool refresh_gui;
 
@@ -83,6 +92,14 @@ static bool refresh_gui;
 #define COLOR_BG lv_color_black()
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
+static void ui_goto_screen(lv_obj_t *scr) {
+    if (lv_scr_act() != scr) {
+        lv_scr_load(scr);
+        lv_group_focus_obj(scr);
+        time_screen = time_us_64();
+    }
+}
 
 static lv_obj_t *ui_scr_create(void) {
     lv_obj_t *obj = lv_obj_create(NULL);
@@ -163,7 +180,7 @@ static void update_bar(void) {
     if (current_progress / 5 == prev_progress / 5)
         return;
     prev_progress = current_progress;
-    line_points[1].x = DISPLAY_WIDTH * current_progress / 100;
+    line_points[1].x = (lv_coord_t)(DISPLAY_WIDTH * current_progress / 100);
     lv_line_set_points(g_progress_bar, line_points, 2);
 
     lv_label_set_text(g_progress_text, gc_cardman_get_progress_text());
@@ -245,12 +262,15 @@ static void gui_tick(void) {
 
 static void reload_card_cb(int progress, bool done) {
     current_progress = progress;
+
     if (done) {
         gc_cardman_set_progress_cb(NULL);
 
-        UI_GOTO_SCREEN(scr_main);
+        ui_state = UI_STATE_MAIN;
         input_flush();
-        waiting_card = false;
+    } else if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
+
+        ui_state = UI_STATE_SWITCHING;
     }
 }
 
@@ -327,16 +347,17 @@ static void evt_scr_main(lv_event_t *event) {
             lv_obj_t *first = lv_obj_get_child(main_page, 0);
             lv_group_focus_obj(first);
             lv_event_stop_bubbling(event);
-        }
-
-        if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
+            ui_state = UI_STATE_MENU;
+        } else if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             switch (key) {
                 case INPUT_KEY_PREV: gc_mmceman_prev_ch(true); break;
                 case INPUT_KEY_NEXT: gc_mmceman_next_ch(true); break;
                 case INPUT_KEY_BACK: gc_mmceman_prev_idx(true); break;
                 case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
             }
+            ui_state = UI_STATE_MAIN;
         }
+        time_screen = time_us_64();
     }
 }
 
@@ -345,9 +366,10 @@ static void evt_scr_menu(lv_event_t *event) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
         log(LOG_INFO, "menu screen got key %d\n", (int)key);
         if (key == INPUT_KEY_BACK || key == INPUT_KEY_MENU) {
-            UI_GOTO_SCREEN(scr_main);
+            ui_state = UI_STATE_MAIN;
             lv_event_stop_bubbling(event);
         }
+        time_screen = time_us_64();
     }
 }
 
@@ -640,19 +662,6 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
-/**
-    lv_obj_t *splash_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(splash_page, "Deploy Splash", false);
-    {
-        cont = ui_menu_cont_create(splash_page);
-        ui_label_create(cont, "Done!");
-        cont = ui_menu_cont_create(splash_page);
-
-        cont = ui_menu_cont_create_nav(splash_page);
-        ui_label_create(cont, "Back");
-        lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
-    }
-*/
     /* display / vcomh submenu */
     lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
@@ -803,8 +812,6 @@ static void create_menu_screen(void) {
     ui_menu_set_page(menu, main_page);
 }
 
-
-
 static void create_splash(void) {
     // Create the splash screen object
     scr_splash = ui_scr_create();
@@ -824,6 +831,32 @@ static void create_splash(void) {
     lv_img_set_src(img, &splash_img_dsc);
 
     lv_obj_center(img);
+
+    lv_obj_add_event_cb(scr_splash, evt_scr_main, LV_EVENT_ALL, NULL);
+}
+
+static void create_sd_mode(void) {
+        // Create the splash screen object
+    scr_sd_mode = ui_scr_create();
+
+    // Create an lv_img_dsc_t for the buffer
+    static const lv_img_dsc_t splash_img_dsc = {
+        .header.always_zero = 0,
+        .header.w = 128,
+        .header.h = 64,
+        .data_size =  sizeof(sd_mode_image),
+        .header.cf = LV_IMG_CF_INDEXED_1BIT,
+        .data = sd_mode_image,
+    };
+
+    // Add the image to the splash screen
+    lv_obj_t *img = lv_img_create(scr_sd_mode);
+    lv_img_set_src(img, &splash_img_dsc);
+
+    lv_obj_center(img);
+
+    // Add event for manually returning to normal ops
+
 }
 
 static void create_ui(void) {
@@ -841,9 +874,11 @@ static void create_ui(void) {
     create_menu_screen();
     create_cardswitch_screen();
     create_splash();
+    create_sd_mode();
 
-    /* start at the main screen */
-    UI_GOTO_SCREEN(scr_main);
+    /* start at the splash screen */
+    ui_goto_screen(scr_splash);
+    ui_state = UI_STATE_SPLASH;
 }
 
 static void update_activity(void) {
@@ -915,10 +950,10 @@ void gui_init(void) {
 
         create_ui();
         splash_init();
-        time_start = time_us_64();
+        time_screen = time_us_64();
 
         refresh_gui = false;
-        waiting_card = false;
+        ui_state = UI_STATE_SPLASH;
     }
 }
 
@@ -933,13 +968,45 @@ void gui_do_gc_card_switch(void) {
 
     update_bar();
 
-    UI_GOTO_SCREEN(scr_card_switch);
-
     oled_update_last_action_time();
 
     gc_cardman_set_progress_cb(reload_card_cb);
 
-    waiting_card = true;
+    if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
+        ui_state = UI_STATE_SWITCHING;
+    }
+}
+
+void gui_activate_sd_mode(void) {
+    ui_state = UI_STATE_SD_MODE;
+}
+
+
+static void gui_update_state() {
+    static uint32_t prev_state = UI_STATE_SPLASH;
+    if (prev_state != ui_state) {
+        switch (ui_state) {
+            case UI_STATE_SPLASH:
+            case UI_STATE_GAME_IMG:
+                ui_goto_screen(scr_splash);
+                break;
+            case UI_STATE_MAIN:
+                ui_goto_screen(scr_main);
+                break;
+            case UI_STATE_SWITCHING:
+                ui_goto_screen(scr_card_switch);
+                break;
+            case UI_STATE_MENU:
+                ui_goto_screen(scr_menu);
+                break;
+            case UI_STATE_SD_MODE:
+                ui_goto_screen(scr_sd_mode);
+                break;
+            default:
+                break;
+        }
+        prev_state = ui_state;
+    }
 }
 
 void gui_task(void) {
@@ -948,30 +1015,20 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (time_us_64() < time_start + 2 * 1000 * 1000) {
-        // Wait for 2 seconds before showing the main screen
-        if (lv_scr_act() != scr_splash) {
-            UI_GOTO_SCREEN(scr_splash);
-        }
-    } else if (waiting_card) {
-        update_bar();
+    gui_update_state();
 
-        oled_update_last_action_time();
-    } else {
+
+    if (ui_state == UI_STATE_MAIN) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static gc_cardman_state_t cardman_state = GC_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
 
-        if (lv_scr_act() == scr_splash) {
-            UI_GOTO_SCREEN(scr_main);
-        }
-
-        lv_label_set_text(main_header, "GC Memory Card");
 
         if (displayed_card_idx != gc_cardman_get_idx() || displayed_card_channel != gc_cardman_get_channel() || cardman_state != gc_cardman_get_state() ||
             refresh_gui) {
+            lv_label_set_text(main_header, "GC Memory Card");
             displayed_card_idx = gc_cardman_get_idx();
             displayed_card_channel = gc_cardman_get_channel();
             folder_name = gc_cardman_get_folder_name();
@@ -1022,10 +1079,21 @@ void gui_task(void) {
                 lv_label_set_text(scr_main_info_lbl, info_text);
 
             }
+
+            splash_update_current(folder_name, folder_name, gc_cardman_get_channel());
+
         }
 
         refresh_gui = false;
         update_activity();
+        if (splash_game_image_available
+            && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
+                ui_state = UI_STATE_GAME_IMG;
+        }
+    } else if (UI_STATE_SWITCHING == ui_state) {
+        update_bar();
+        oled_update_last_action_time();
     }
+
     gui_tick();
 }

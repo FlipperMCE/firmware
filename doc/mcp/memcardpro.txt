@@ -1,20 +1,20 @@
-Command:  Get device ID (early boot)
-Request:  0x00 00 XX XX XX XX
+Command:  Get device ID (non-memory card)
+Request:  0x00 XX XX XX XX XX
 Response: 0xXX XX 38 42 aa aa
 
-a: Version in big endian BCD (01.00)
+a: Version in big endian BCD (01.01)
 
 
 Command:  Get device ID
 Request:  0x8B 00 XX XX XX XX
 Response: 0xXX XX 38 42 aa aa
 
-a: Version in big endian BCD (01.00)
+a: Version in big endian BCD (01.01)
 
 
 Command:  Get access mode
-Request:  0x8B 01 XX
-Response: 0xXX XX aa
+Request:  0x8B 01 XX XX
+Response: 0xXX XX XX aa
 
 a: 0x00 if in read-only mode, 0x01 if in exclusive read/write mode.
 
@@ -24,11 +24,14 @@ Request:  0x8B 02 aa
 Response: 0xXX XX XX
 
 Raises a EXI interrupt once internal processes have completed.
+When in exclusive read/write mode, memory card emulators must unmount all filesystems present on the storage medium.
+When in read-only mode, memory card emulators may remount filesystems and process pending operations.
+If a read/write operation from the host system is currently in progress, it must be aborted.
 
 
 Command:  Get disc ID
-Request:  0x8B 10 XX XX XX XX XX XX XX XX XX XX
-Response: 0xXX XX aa aa aa aa bb bb cc cc dd dd
+Request:  0x8B 10 XX XX XX XX XX XX XX XX XX XX XX
+Response: 0xXX XX XX aa aa aa aa bb bb cc cc dd dd
 
 a: Game name (GZLE)
 b: Company name (01)
@@ -41,12 +44,12 @@ Command:  Set disc ID
 Request:  0x8B 11 aa aa aa aa bb bb cc cc dd dd
 Response: 0xXX XX XX XX XX XX XX XX XX XX XX XX
 
-Clears disc name as a side effect.
+Clears disc name as a side effect. If disc ID is cleared, return to startup card.
 
 
 Command:  Get disc name
-Request:  0x8B 12 XX ...
-Response: 0xXX XX aa ...
+Request:  0x8B 12 XX XX ...
+Response: 0xXX XX XX aa ...
 
 a: ASCII with nul terminator if shorter than 64 characters (THE LEGEND OF ZELDA The Wind Waker for USA\0)
 
@@ -58,9 +61,27 @@ Response: 0xXX XX XX ...
 May be set without disc ID.
 
 
+Command:  Get PixelFX Game ID
+Request:  0x8B 1C XX XX XX XX XX XX XX XX XX XX XX
+Response: 0xXX XX XX aa aa aa aa aa aa aa aa bb cc
+
+a: 64-bit XXH3 of executable in big endian (0x36D193DF45BFDAA4)
+b: Product code (G), may be nul for homebrew
+c: Destination code (E), may be nul for homebrew
+X: Undefined
+
+
+Command:  Set PixelFX Game ID
+Request:  0x8B 1D aa aa aa aa aa aa aa aa bb cc
+Response: 0xXX XX XX XX XX XX XX XX XX XX XX XX
+
+May be set without disc ID. If product/destination code doesn't match the disc ID's, disc ID should be cleared.
+Usually set on Swiss startup and shutdown.
+
+
 Command:  Start read multiple block
-Request:  0x8B 20 aa aa aa aa bb bb bb bb
-Response: 0xXX XX XX XX XX XX XX XX XX XX
+Request:  0x8B 20 aa aa aa aa bb bb
+Response: 0xXX XX XX XX XX XX XX XX
 
 a: Block number in big endian, 512-byte units
 b: Number of blocks in big endian
@@ -71,19 +92,19 @@ If only one block is requested, READ_SINGLE_BLOCK should be used.
 
 
 Command:  Read block
-Request:  0x8B 21 XX ...
-Response: 0xXX XX aa ...
+Request:  0x8B 21 XX XX ...
+Response: 0xXX XX XX aa ...
 
 a: Block data, 512 bytes
 
-Raises a EXI interrupt when ready to read next block.
+Raises a EXI interrupt when ready to read next block until the last block.
 Data is undefined if a read multiple block command isn't in progress.
 Must support 27 MHz operation.
 
 
 Command:  Start write multiple block
-Request:  0x8B 22 aa aa aa aa bb bb bb bb
-Response: 0xXX XX XX XX XX XX XX XX XX XX
+Request:  0x8B 22 aa aa aa aa bb bb
+Response: 0xXX XX XX XX XX XX XX XX
 
 a: Block number in big endian, 512-byte units
 b: Number of blocks in big endian
@@ -99,6 +120,7 @@ Response: 0xXX XX XX ...
 
 a: Block data, 512 bytes
 
-Raises a EXI interrupt when ready to write next block.
+Raises a EXI interrupt when ready to write next block, or if on the last block, when the write has completed.
 Data is ignored if a write multiple block command isn't in progress.
 Must support 27 MHz operation.
+

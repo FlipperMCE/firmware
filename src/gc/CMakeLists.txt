@@ -1,9 +1,7 @@
 
 add_library(gc_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman.c
-                #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_commands.c
-                #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_debug.c
-                #${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_fs.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/gc_mmceman_block_commands.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/gc_memory_card.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/gc_mc_data_interface.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/gc_unlock.c

@@ -5,6 +5,10 @@
 
 #define PIN_MC_CONNECTED PIN_SENSE
 
+
+
+
+
 void gc_memory_card_main(void);
 void gc_memory_card_enter(void);
 void gc_memory_card_exit(void);

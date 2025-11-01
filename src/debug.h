@@ -1,8 +1,6 @@
 #pragma once
 
 #include <stddef.h>
-#include <inttypes.h>
-#include <stdio.h>
 #include <pico/platform.h>
 
 #define LOG_LEVEL_MC_DATA    2
@@ -12,7 +10,6 @@
 #define LOG_LEVEL_CARD_CONF  2
 #define LOG_LEVEL_GC_CM      3
 #define LOG_LEVEL_GC_MC      2
-#define LOG_LEVEL_GC_S2M     2
 #define LOG_LEVEL_GC_UL      2
 #define LOG_LEVEL_GC_MAIN    2
 

@@ -4,6 +4,7 @@
 #include "SPI.h"
 
 #include "hardware/gpio.h"
+#include "pico/platform.h"
 
 extern "C" {
 #include "debug.h"
@@ -20,7 +21,11 @@ static SdFat sd;
 static File files[NUM_FILES + 1];
 static bool initialized = false;
 
-extern "C" void sd_init() {
+extern "C" void sd_init(bool reinit) {
+    if (reinit) {
+        sd.volumeBegin();
+        return;
+    }
     if (!initialized) {
         SD_PERIPH.setRX(SD_MISO);
         SD_PERIPH.setTX(SD_MOSI);
@@ -45,6 +50,13 @@ extern "C" void sd_init() {
     }
 }
 
+extern "C" void sd_unmount() {
+    if (initialized) {
+        sd_sync_cache();
+        sd.end();
+    }
+}
+
 void sdCsInit(SdCsPin_t pin) {
     gpio_init(pin);
     gpio_set_dir(pin, 1);
@@ -57,7 +69,7 @@ void sdCsWrite(SdCsPin_t pin, bool level) {
 extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
     if (!initialized) {
-        sd_init();
+        sd_init(false);
     }
 
     if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
@@ -177,98 +189,41 @@ extern "C" bool sd_is_dir(int fd) {
     return files[fd].isDirectory();
 }
 
-extern "C" int sd_getStat(int fd, sd_file_stat_t* const sd_stat) {
-    files[fd].getAccessDateTime(&sd_stat->adate, &sd_stat->atime);
-    files[fd].getCreateDateTime(&sd_stat->cdate, &sd_stat->ctime);
-    files[fd].getModifyDateTime(&sd_stat->mdate, &sd_stat->mtime);
-    sd_stat->writable = files[fd].isWritable();
-    sd_stat->size = files[fd].fileSize();
 
-    return -1;
-}
-
-extern "C" void mapTime(const uint16_t date, const uint16_t time, uint8_t* const out_time) {
-    uint16_t year;
-    out_time[0] = 0; // Padding
-
-    out_time[4] = (date & 31); // Day
-    out_time[5] = (date >> 5) & 15; // Month
-
-    year = (date >> 9) + 1980;
-    out_time[6] = year & 0xff; // Year (low bits)
-    out_time[7] = (year >> 8) & 0xff; // Year (high bits)
-
-    out_time[3] = (time >> 11); // Hours
-    out_time[2] = (time >> 5) & 63; // Minutes
-    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)
-}
-
-//Get stat and convert to format fileio expects
-extern "C" int sd_get_stat(int fd, gc_fileio_stat_t* const gc_fileio_stat) {
-    CHECK_FD(fd);
-
-    uint16_t date, time;
-
-    //FIO_S_IFREG
-    if (files[fd].isFile())
-        gc_fileio_stat->mode = FIO_S_IFREG;
-    //FIO_S_IFDIR
-    else if (files[fd].isDir())
-        gc_fileio_stat->mode = FIO_S_IFDIR;
-
-    //FIO_S_IROTH
-    if (files[fd].isReadable())
-        gc_fileio_stat->mode |= FIO_S_IROTH;
-
-    //FIO_S_IWOTH
-    if (files[fd].isWritable())
-        gc_fileio_stat->mode |= FIO_S_IWOTH;
-
-    //FIO_S_IXOTH - TODO
-
-    gc_fileio_stat->attr = 0x0; //TODO
-    gc_fileio_stat->size = (uint32_t)files[fd].fileSize();
-
-    files[fd].getCreateDateTime(&date, &time);
-    mapTime(date, time, gc_fileio_stat->ctime);
-    files[fd].getAccessDateTime(&date, &time);
-    mapTime(date, time, gc_fileio_stat->atime);
-    files[fd].getModifyDateTime(&date, &time);
-    mapTime(date, time, gc_fileio_stat->mtime);
-
-    gc_fileio_stat->hisize = (files[fd].fileSize() >> 32);
-
-    return 0;
-}
-
-extern "C" int sd_fd_is_open(int fd) {
-    CHECK_FD(fd);
-    return 0;
-}
-
-extern "C" uint64_t sd_filesize64(int fd) {
-    CHECK_FD(fd);
-    return files[fd].fileSize();
-}
-
-//curPosition returns a uint64_t when using exFAT
-extern "C" uint64_t sd_tell64(int fd) {
-    CHECK_FD(fd);
-
-    return (uint64_t)files[fd].curPosition();
-}
-
-extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
-    if (whence == 0) {
-        return files[fd].seekSet((uint64_t)offset) != true;
-    } else if (whence == 1) {
-        return files[fd].seekCur(offset) != true;
-    } else if (whence == 2) {
-        return files[fd].seekEnd(offset) != true;
+extern "C" bool sd_read_sector(uint32_t sector, uint8_t* dst) {
+    while (sd.card()->isBusy()) {
+        // Wait until the card is ready
+        tight_loop_contents();
     }
-    return 1;
+    return sd.card()->readSector(sector, dst);
 }
 
-extern "C" int sd_rename(const char* old_path, const char* new_path) {
-    return sd.rename(old_path, new_path) != true;
+
+extern "C" bool sd_write_sector(uint32_t sector, const uint8_t* src) {
+    while (sd.card()->isBusy()) {
+        // Wait until the card is ready
+        tight_loop_contents();
+    }
+    return sd.card()->writeSector(sector, src);
+}
+
+extern "C" bool sd_sync_cache(void) {
+    // This function must only be called from Core 0
+    if (get_core_num() != 0) {
+        return false;
+    }
+
+    if (!initialized) {
+        return true;  // Nothing to sync
+    }
+
+    // Sync all open files first
+    for (size_t fd = 0; fd < NUM_FILES; ++fd) {
+        if (files[fd].isOpen()) {
+            files[fd].sync();  // sync includes cache flush for the file
+        }
+    }
+
+    // Force card sync to ensure all writes are committed
+    return sd.card()->syncDevice();
 }

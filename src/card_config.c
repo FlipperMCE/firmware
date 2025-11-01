@@ -1,5 +1,4 @@
 #include "card_config.h"
-#include "settings.h"
 #include "sd.h"
 #include "debug.h"
 
@@ -73,7 +72,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
         }
     } else if (MATCH("Settings", "MaxChannels")) {
         uint8_t max_channels = (uint8_t)atoi(value);
-        if (max_channels > 0 && max_channels <= UINT8_MAX) {
+        if (max_channels > 0) {
             ctx->max_channels = max_channels;
         }
     }
@@ -150,6 +149,27 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
     }
     log(LOG_TRACE, "max_channels=%d\n", ctx.max_channels);
     return ctx.max_channels;
+}
+
+bool card_config_read_image(uint8_t buff[1032], const char* card_folder, const char* card_base, int chan_idx) {
+    char image_path[64];
+    int fd;
+
+    snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/GC/%s/%s-%i.bin", card_folder, card_base, chan_idx);
+    if(!sd_exists(image_path)) {
+        snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/GC/%s/%s.bin", card_folder, card_base);
+    }
+
+    fd = sd_open(image_path, O_RDONLY);
+    if (fd >= 0) {
+        sd_read(fd, buff, 1032);
+        sd_close(fd);
+        log(LOG_TRACE, "Read image %s\n", image_path);
+        return true;
+    } else {
+        memset(buff, 0, 1032);
+        return false;
+    }
 }
 
 

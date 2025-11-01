@@ -54,3 +54,5 @@ void gc_cardman_set_variant(int variant);
 bool gc_cardman_needs_update(void);
 bool gc_cardman_is_accessible(void);
 bool gc_cardman_is_idle(void);
+void gc_cardman_set_sd_mode(bool sd_mode);
+bool gc_cardman_is_sd_mode(void);

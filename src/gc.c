@@ -1,21 +1,16 @@
-#include <stdint.h>
-#include "hardware/timer.h"
 
 #include "mmceman/gc_mmceman.h"
+#include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/multicore.h"
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"
 #include "oled.h"
 #endif
-#include "settings.h"
 #include "card_emu/gc_mc_data_interface.h"
 #include "card_emu/gc_memory_card.h"
-#include "gc_dirty.h"
 #include "gc_cardman.h"
 #include "debug.h"
-
-#include <stdio.h>
 
 #if LOG_LEVEL_GC_MAIN == 0
 #define log(x...)
@@ -29,6 +24,7 @@ void gc_init(void) {
     multicore_launch_core1(gc_memory_card_main);
 
     gc_mc_data_interface_init();
+    gc_mmceman_block_init();
 
     gc_cardman_init();
 
@@ -51,8 +47,12 @@ bool gc_task(void) {
     oled_task();
 #endif
 
-    if (gc_cardman_is_idle())
+    if (gc_cardman_is_idle()) {
         gc_mc_data_interface_task();
+        gc_mmceman_block_task();
+    } else if (gc_cardman_is_sd_mode()) {
+        gc_mmceman_block_task();
+    }
 
     return true;
 }
