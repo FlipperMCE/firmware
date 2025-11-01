@@ -40,9 +40,6 @@ size_t sd_get_name(int fd, char* name, size_t size);
 bool sd_is_dir(int fd);
 int sd_fd_is_open(int fd);
 
-uint64_t sd_filesize64(int fd);
-int sd_seek64(int fd, int64_t offset, int whence);
-uint64_t sd_tell64(int fd);
 
 bool sd_read_sector(uint32_t sector, uint8_t* dst);
 bool sd_write_sector(uint32_t sector, const uint8_t* src);
