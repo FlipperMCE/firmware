@@ -1080,7 +1080,8 @@ void gui_task(void) {
 
             }
 
-            splash_update_current(folder_name, folder_name);
+            splash_update_current(folder_name, folder_name, gc_cardman_get_channel());
+
         }
 
         refresh_gui = false;
