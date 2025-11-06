@@ -408,7 +408,7 @@ static void __time_critical_func(mc_block_start_read)(void) {
     gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
     interrupt_enable = 0x01;
     log(LOG_INFO, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u16);
-    while (!gc_mmceman_block_data_ready() || !reset) {
+    while (!gc_mmceman_block_data_ready()) {
         if (mc_exit_request) return;
     }
     gc_mmceman_block_read_data(&block_buffer);
@@ -431,7 +431,7 @@ static void __time_critical_func(mc_block_read)(void) {
     if (!gc_mmceman_block_read_idle()) {
         gc_mmceman_block_swap_in_next();
 
-        while (!gc_mmceman_block_data_ready() || !reset) {
+        while (!gc_mmceman_block_data_ready()) {
             if (mc_exit_request) return;
         }
         gc_mmceman_block_read_data(&block_buffer);
