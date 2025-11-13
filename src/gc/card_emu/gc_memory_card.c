@@ -41,7 +41,7 @@ static pio_t cmd_reader, dat_writer, clock_probe;
 static uint8_t interrupt_enable = 0;
 uint8_t card_state;
 
-static dma_channel_config dma_wait_config, dma_write_config;
+static dma_channel_config dma_wait_config, dma_write_config, dma_block_read_config;
 static uint8_t _;
 static bool req_int = false;
 
@@ -50,6 +50,10 @@ static int memcard_running;
 //volatile bool gc_card_active;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+
+uint DMA_WAIT_CHAN;
+uint DMA_WRITE_CHAN;
+uint DMA_BLOCK_READ_CHAN;
 
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
@@ -73,6 +77,7 @@ static void __time_critical_func(reset_pio)(void) {
 
     reset = 1;
 }
+
 
 static void __time_critical_func(init_pio)(void) {
 
@@ -107,7 +112,7 @@ static void __time_critical_func(init_pio)(void) {
     gpio_put(PIN_GC_INT, 1);
     gpio_put(PIN_MC_CONNECTED, 0);
 
-
+    DMA_WAIT_CHAN = dma_claim_unused_channel(true);
     dma_wait_config = dma_channel_get_default_config(DMA_WAIT_CHAN);
     channel_config_set_read_increment(&dma_wait_config, false);
     channel_config_set_write_increment(&dma_wait_config, false); // Changed to false to write to same location
@@ -122,6 +127,7 @@ static void __time_critical_func(init_pio)(void) {
         false                   // Start immediately
     );
 
+    DMA_WRITE_CHAN = dma_claim_unused_channel(true);
     dma_write_config = dma_channel_get_default_config(DMA_WRITE_CHAN);
     channel_config_set_read_increment(&dma_write_config, false);
     channel_config_set_write_increment(&dma_write_config, true); // Changed to false to write to same location
@@ -133,6 +139,21 @@ static void __time_critical_func(init_pio)(void) {
         &_,            // Single byte destination address
         &pio0->rxf[cmd_reader.sm],  // Source address
         128,                    // Number of transfers
+        false                   // Start immediately
+    );
+
+    DMA_BLOCK_READ_CHAN = dma_claim_unused_channel(true);
+    dma_block_read_config = dma_channel_get_default_config(DMA_BLOCK_READ_CHAN);
+    channel_config_set_read_increment(&dma_block_read_config, true);
+    channel_config_set_write_increment(&dma_block_read_config, false); // Changed to false to write to same location
+    channel_config_set_transfer_data_size(&dma_block_read_config, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_block_read_config, pio_get_dreq(pio0, dat_writer.sm, true));
+    dma_channel_configure(
+        DMA_BLOCK_READ_CHAN,                 // Channel to be configured
+        &dma_block_read_config,         // The configuration we just created
+        ((uint8_t*)&pio0->txf[dat_writer.sm])+3,            // Single byte destination address
+        NULL,  // Source address
+        512,                    // Number of transfers
         false                   // Start immediately
     );
 }
@@ -387,31 +408,34 @@ static void __time_critical_func(mc_block_start_read)(void) {
     gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
     interrupt_enable = 0x01;
     log(LOG_INFO, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u16);
-    while (!gc_mmceman_block_data_ready() || !reset) {
+    while (!gc_mmceman_block_data_ready()) {
         if (mc_exit_request) return;
     }
     gc_mmceman_block_read_data(&block_buffer);
-
-
+    dma_channel_set_read_addr(DMA_BLOCK_READ_CHAN, block_buffer, false);
     gpio_put(PIN_GC_INT, 0);
 }
 
 static void __time_critical_func(mc_block_read)(void) {
     uint8_t _;
-//    gc_mmceman_block_read_data(&buffer);
     gc_receive(&_);
+    dma_channel_start(DMA_BLOCK_READ_CHAN);
 
-    for (int i = 0; i < 512; i++) {
-        gc_mc_respond(block_buffer[i]);
-    }
-    //log(LOG_INFO, "Block read data sent\n");
+    while(dma_channel_is_busy(DMA_BLOCK_READ_CHAN)) {
+        if (reset) {
+            log(LOG_ERROR, "Block read aborted due to reset\n");
+            dma_channel_abort(DMA_BLOCK_READ_CHAN);
+            return;
+        }
+    };
     if (!gc_mmceman_block_read_idle()) {
         gc_mmceman_block_swap_in_next();
 
-        while (!gc_mmceman_block_data_ready() || !reset) {
+        while (!gc_mmceman_block_data_ready()) {
             if (mc_exit_request) return;
         }
         gc_mmceman_block_read_data(&block_buffer);
+        dma_channel_set_read_addr(DMA_BLOCK_READ_CHAN, block_buffer, false);
 
         gpio_put(PIN_GC_INT, 0);
     }
