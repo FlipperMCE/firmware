@@ -11,6 +11,7 @@
 #include "hardware/timer.h"
 #include "mmceman/gc_mmceman_block_commands.h"
 #include "pico/time.h"
+#include "sd.h"
 
 #if WITH_GUI
 #include "gui.h"
@@ -90,7 +91,14 @@ void gc_mmceman_task(void) {
                     gc_cardman_set_sd_mode(true);
                     gui_activate_sd_mode();
                 } else {
+                    const char* game_id;
+                    const char* region;
                     gc_cardman_set_sd_mode(false);
+                    game_db_get_current_id(&game_id, &region);
+                    if (game_id && region) {
+                        sd_init(true);
+                        gc_cardman_set_gameid(game_id, region);
+                    }
                 }
                 log(LOG_INFO, "%s: set access mode\n", __func__);
                 break;
