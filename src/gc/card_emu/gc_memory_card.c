@@ -484,8 +484,10 @@ static void __time_critical_func(mc_block_set_accessmode)(void) {
     gc_receive(&mode);
     gc_mmceman_block_set_sd_mode((mode != 0));
 
-    if (mode != 0)
+    if (mode != 0) {
+        while (!reset){};
         gpio_put(PIN_GC_INT, 0);
+    }
 
     log(LOG_INFO, "Set access mode: %u\n", mode);
 }
