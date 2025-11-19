@@ -27,9 +27,6 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GC_MC, level, fmt, ##x)
 #endif
 
-#define DMA_READ 1
-
-
 static uint64_t gc_us_startup;
 
 volatile int reset;
