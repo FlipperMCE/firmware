@@ -168,15 +168,18 @@ void __time_critical_func(mc_unlock)(void) {
     uint8_t _;
 
     if (unlock_stage == 0) {
-        gc_receiveOrNextCmd(&offset[3]);
-        gc_receiveOrNextCmd(&offset[2]);
-        gc_receiveOrNextCmd(&offset[1]);
         gc_receiveOrNextCmd(&offset[0]);
+        gc_receiveOrNextCmd(&offset[1]);
+        gc_receiveOrNextCmd(&offset[2]);
+        gc_receiveOrNextCmd(&offset[3]);
 
         dma_channel_start(DMA_WAIT_CHAN);
+        //log(LOG_TRACE, "Starting Unlock\n");
 
-        offset_u32 = ((offset[3] << 29) & 0x60000000) | ((offset[2] << 21) & 0x1FE00000) | ((offset[1] << 19) & 0x00180000) | ((offset[0] << 12) & 0x0007F000);
+        offset_u32 = ((offset[0] << 29) & 0x60000000) | ((offset[1] << 21) & 0x1FE00000) | ((offset[2] << 19) & 0x00180000) | ((offset[3] << 12) & 0x0007F000);
+
         mc_unlock_stage_0(offset_u32);
+
 
     } else if (unlock_stage == 1) {
         uint32_t a,b,c, d, e;
@@ -195,6 +198,7 @@ void __time_critical_func(mc_unlock)(void) {
         gc_receiveOrNextCmd(&_);
 
         dma_channel_start(DMA_WAIT_CHAN);
+
 
         log(LOG_TRACE, "Unlock Msg2: Decoded Offset is %08x / %02x\n", initial_offset_u32, initial_length_u32);
         init_cipher(&card_cipher, initial_offset_u32, initial_length_u32);
@@ -272,15 +276,15 @@ void __time_critical_func(mc_unlock)(void) {
             flash_id[8], flash_id[9], flash_id[10], flash_id[11]);
         log(LOG_TRACE, "\n");
 
-        log(LOG_TRACE, "Unlock Msg2: Flash ID is ");
+        /*log(LOG_TRACE, "Unlock Msg2: Flash ID is ");
         for (int i = 0; i < 12; i++)
             log(LOG_TRACE, "%02x ", flash_id[i]);
-        log(LOG_TRACE, "\n");
+        log(LOG_TRACE, "\n");*/
         log(LOG_TRACE, "Unlock Msg2: Unlock: %08x / %u\n", offset_u32, len);
         log(LOG_TRACE, "Unlock Msg2: Last cipher is %08x\n", card_cipher);
         log(LOG_TRACE, "Unlock Msg2: Key is %08x %08x %08x %08x %08x - len %u \n", a, b, c, d, e, len);
     } else if (unlock_stage == 2) {
-        uint8_t len = 0;
+        /*uint8_t len = 0;
         gc_receiveOrNextCmd(&offset[3]);
         gc_receiveOrNextCmd(&offset[2]);
         offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
@@ -289,27 +293,29 @@ void __time_critical_func(mc_unlock)(void) {
         dma_channel_start(DMA_WAIT_CHAN);
 
         while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
+
         gc_mc_respond(0xFF);
         while(gc_receive(&_) != RECEIVE_RESET) {
-            len++;
+        len++;
         }
         msg3_len_u32 = len;
         log(LOG_TRACE, "Unlock Msg3: Raw: %08x / %u\n", *(uint32_t*)offset, len);
 
-        log(LOG_TRACE, "Unlock Msg3: Unlock: %08x / %u\n", offset_u32, len);
+        log(LOG_TRACE, "Unlock Msg3: Unlock: %08x / %u\n", offset_u32, len);*/
         unlock_stage++;
 
     } else {
+        /*
         gc_receiveOrNextCmd(&offset[3]);
         gc_receiveOrNextCmd(&offset[2]);
         offset_u32 = ((offset[3] << 24) & 0xFF000000) | ((offset[2] << 16) & 0x00FF0000);
-        gc_receiveOrNextCmd(&offset[1]);
-        gc_receiveOrNextCmd(&offset[0]);
-        dma_channel_start(DMA_WAIT_CHAN);
+        //gc_receiveOrNextCmd(&offset[1]);
+        //gc_receiveOrNextCmd(&offset[0]);
+        //dma_channel_start(DMA_WAIT_CHAN);*/
 
         card_state = 0x41;
         unlock_stage = 0;
-        while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
+        //while (dma_channel_is_busy(DMA_WAIT_CHAN)); // Wait for DMA to complete
     }
     return;
 

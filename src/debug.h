@@ -8,7 +8,7 @@
 #define LOG_LEVEL_MMCEMAN_FS 2
 #define LOG_LEVEL_GUI        2
 #define LOG_LEVEL_CARD_CONF  2
-#define LOG_LEVEL_GC_CM      3
+#define LOG_LEVEL_GC_CM      2
 #define LOG_LEVEL_GC_MC      2
 #define LOG_LEVEL_GC_UL      2
 #define LOG_LEVEL_GC_MAIN    2
