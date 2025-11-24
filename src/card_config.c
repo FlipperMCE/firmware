@@ -17,7 +17,7 @@
 #endif
 
 #define MAX_CFG_PATH_LENGTH         (64)
-#define CUSTOM_CARDS_CONFIG_PATH    (".sd2psx/Game2Folder.ini")
+#define CUSTOM_CARDS_CONFIG_PATH    (".flippermce/Game2Folder.ini")
 
 typedef struct {
     const char *channel_number;
@@ -28,7 +28,7 @@ typedef struct {
 } parse_card_config_t;
 
 typedef struct {
-    char game_id[4];
+    char game_id[15];
     char *card_folder;
     size_t card_folder_max_len;
 } parse_custom_card_folder_t;
@@ -179,10 +179,10 @@ void card_config_get_card_folder(const char* game_id, char* card_folder, size_t 
         .card_folder = card_folder,
         .card_folder_max_len = card_folder_max_len
     };
-    memcpy(ctx.game_id, game_id, 4);
+    memcpy(ctx.game_id, game_id, 15);
 
     int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
-    log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id);
+    log(LOG_TRACE, "Looking for game_id=%s \n", game_id);
 
     if (fd >= 0) {
         ini_parse_sd_file(fd, parse_custom_card_folder, &ctx);
