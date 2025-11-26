@@ -663,7 +663,9 @@ void gc_cardman_set_gameid(const char *const card_game_id, const char *const reg
 
     char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
     if (card_game_id[0]) {
-        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        char full_game_id[16] = {0};
+        snprintf(full_game_id, sizeof(full_game_id), "DL-DOL-%c%c%c%c-%s", card_game_id[0], card_game_id[1], card_game_id[2], card_game_id[3], region);
+        card_config_get_card_folder(full_game_id, new_folder_name, sizeof(new_folder_name));
         if (new_folder_name[0] == 0x00)
             snprintf(new_folder_name, sizeof(new_folder_name), "DL-DOL-%c%c%c%c-%s", card_game_id[0], card_game_id[1], card_game_id[2], card_game_id[3], region);
         log(LOG_TRACE, "Folder: %s\n", new_folder_name);
