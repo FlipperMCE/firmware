@@ -194,6 +194,8 @@ void settings_init(void) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
     }
+
+    settings_load_sd();
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
