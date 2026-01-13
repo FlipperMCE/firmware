@@ -45,8 +45,6 @@ static uint8_t _;
 
 
 static int memcard_running;
-//volatile bool gc_card_active;
-
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
 uint DMA_WAIT_CHAN;
@@ -69,16 +67,11 @@ static void __time_critical_func(reset_pio)(void) {
     pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
     pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
-    //if (dma_channel_is_busy(DMA_BLOCK_READ_CHAN))
-     //   dma_channel_abort(DMA_BLOCK_READ_CHAN);
-
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
 
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
 
     pio_enable_sm_mask_in_sync(pio0, sm_mask);
-
-
 
     reset = 1;
 }
@@ -188,8 +181,6 @@ uint8_t __time_critical_func(gc_receiveFirst)(uint8_t *cmd) {
             && 1) {
         if (reset || mc_exit_request)
             return reset != 0 ? RECEIVE_RESET : RECEIVE_EXIT;
-//        if (mc_exit_request)
-//            return RECEIVE_EXIT;
     }
     (*cmd) = (uint8_t)pio_sm_get(pio0, cmd_reader.sm);
     return RECEIVE_OK;
@@ -244,14 +235,10 @@ static void __time_critical_func(gc_mc_read)(void) {
     uint8_t offset[4] = {};
 
     uint32_t offset_u32 = 0;
-//    uint32_t test_offset_u32 = 0;
 
     gc_receiveOrNextCmd(&offset[0]);
-//    gc_mc_respond(0xFF); // out byte 3
     gc_receiveOrNextCmd(&offset[1]);
-//    gc_mc_respond(0xFF); // out byte 4
     gc_receiveOrNextCmd(&offset[2]);
-//    gc_mc_respond(0xFF); // out byte 5
     gc_receiveOrNextCmd(&offset[3]);
 
     dma_channel_start(DMA_WAIT_CHAN);
@@ -409,7 +396,7 @@ static void __time_critical_func(mc_block_start_read)(void) {
 
     gc_mmceman_block_request_read_sector(*sec_u32, *count_u16);
     interrupt_enable = 0x01;
-    log(LOG_INFO, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u16);
+    log(LOG_TRACE, "Block read start: sector=%u count=%u\n", *sec_u32, *count_u16);
     while (!gc_mmceman_block_data_ready()) {
         if (mc_exit_request) return;
     }
@@ -489,7 +476,6 @@ static void __time_critical_func(mc_block_set_accessmode)(void) {
         gpio_put(PIN_GC_INT, 0);
     }
 
-    log(LOG_INFO, "Set access mode: %u\n", mode);
 }
 
 static void __time_critical_func(mc_mce_cmd)(void) {
