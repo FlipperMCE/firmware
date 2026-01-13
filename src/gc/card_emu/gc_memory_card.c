@@ -168,7 +168,7 @@ uint8_t __time_critical_func(gc_receive)(uint8_t *cmd) {
             return RECEIVE_RESET;
         }
     }
-    (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) );
+    (*cmd) = (uint8_t)(pio_sm_get(pio0, cmd_reader.sm) & 0xFF );
     return RECEIVE_OK;
 }
 
@@ -521,6 +521,53 @@ static void __time_critical_func(mc_mce_cmd)(void) {
     }
 }
 
+
+static void __time_critical_func(mc_pre_loop)(void) {
+    uint8_t cmd = 0;
+
+    while (!reset) {};
+    gpio_put(PIN_GC_INT, 1);
+
+    reset = 0;
+
+    while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+            && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+            && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+            && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+            && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+            && 1) {
+        if (reset || (gc_cardman_is_idle() && gc_mmceman_block_idle())) {
+            return;
+        }
+    }
+    cmd = (uint8_t)pio_sm_get(pio0, cmd_reader.sm);
+
+    switch (cmd) {
+        case GC_MC_PROBE_CMD:
+            gc_mc_respond(0x00); // <-- MCP ID
+            mc_get_dev_id();
+            break;
+        case GC_MCE_CMD_IDENTIFIER:
+            while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                    && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                    && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                    && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                    && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                    && 1) {
+                if (reset || (gc_cardman_is_idle() && gc_mmceman_block_idle())) {
+                    return;
+                }
+            }
+            cmd = (uint8_t)pio_sm_get(pio0, cmd_reader.sm);
+            if (cmd == MCE_GET_DEV_ID)
+                mc_get_dev_id();
+            break;
+        default:
+            break;
+    }
+}
+
+
 static void __time_critical_func(mc_main_loop)(void) {
     card_state = 0x01;
     uint8_t cmd;
@@ -593,6 +640,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
     }
 }
+static bool initial_boot = true;
 
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
@@ -600,14 +648,27 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mc_enter_response = 1;
         memcard_running = 1;
 
-        while (!gc_cardman_is_idle());
+        if (initial_boot) {
+            reset_pio();
+            gpio_put(PIN_MC_CONNECTED, 1);
+
+            while (!gc_cardman_is_idle() || !gc_mmceman_block_idle()) {
+                mc_pre_loop();
+            };
+            gpio_put(PIN_MC_CONNECTED, 0);
+            initial_boot = false;
+            sleep_ms(10);
+        } else {
+            while (!gc_cardman_is_idle());
+        }
         mc_generateId();
 
         reset_pio();
         gpio_put(PIN_MC_CONNECTED, 1);
-
         gpio_put(PIN_GC_INT, 0);
+
         mc_main_loop();
+
         gpio_put(PIN_MC_CONNECTED, 0);
         log(LOG_TRACE, "%s exit\n", __func__);
     }
