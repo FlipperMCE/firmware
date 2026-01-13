@@ -434,6 +434,7 @@ static void __time_critical_func(mc_block_read)(void) {
 static void __time_critical_func(mc_block_start_write)(void) {
     uint8_t sector[4] = {};
     uint8_t count[4] = {};
+    uint8_t *buffer;
     uint32_t *sec_u32 = (uint32_t *)sector;
     uint16_t count_u16 = 0;
     for (int i = 3; i >= 0; i--) {
@@ -447,17 +448,31 @@ static void __time_critical_func(mc_block_start_write)(void) {
     }
     log(LOG_INFO, "Block write start: sector=%u count=%u\n", *sec_u32, count_u16);
     gc_mmceman_block_request_write_sector(*sec_u32, count_u16);
+    buffer = gc_mmceman_get_write_block();
+
+    dma_channel_configure(DMA_WRITE_CHAN, &dma_write_config, buffer, &pio0->rxf[cmd_reader.sm], 0x200, false);
 
     gpio_put(PIN_GC_INT, 0);
 }
 
 static void __time_critical_func(mc_block_write)(void) {
-    uint8_t* buffer = gc_mmceman_get_write_block();
-    for (int i = 0; i < 512; i++) {
-        gc_receiveOrNextCmd(&buffer[i]);
+
+    dma_channel_start(DMA_WRITE_CHAN);
+
+    while (dma_channel_is_busy(DMA_WRITE_CHAN)) {
+        if (reset) {
+            log(LOG_ERROR, "Block write aborted due to reset\n");
+            dma_channel_abort(DMA_WRITE_CHAN);
+            return;
+        }
     }
     log(LOG_INFO, "Received block data for write\n");
     gc_mmceman_block_write_data();
+    if (!gc_mmceman_block_write_idle()) {
+        uint8_t* buffer = gc_mmceman_get_write_block();
+        dma_channel_set_write_addr(DMA_WRITE_CHAN, buffer, false);
+    }
+
     while (!reset) {
         if (mc_exit_request) return;
     }
