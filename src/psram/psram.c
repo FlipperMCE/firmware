@@ -170,13 +170,11 @@ void psram_init(void) {
             read_id_rsp[3], read_id_rsp[4]);
         #endif
     }
-    #if DEBUG_USB_UART
     else {
         /* switch from SPI to Quad-SPI mode */
         uint8_t enter_qspi[] = { 0x35 };
         SPI_OP(pio_spi_write8_read8_blocking(&spi, enter_qspi, sizeof(enter_qspi), NULL, 0));
     }
-    #endif
 
 
     pio_remove_program(spi.pio, &spi_cpha0_program, offset);
