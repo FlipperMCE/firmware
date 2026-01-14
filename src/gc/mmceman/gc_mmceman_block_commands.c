@@ -239,6 +239,9 @@ void __time_critical_func(gc_mmceman_block_write_data)(void) {
             sd_write_op.result = 0; // Reset result before writing
             sd_write_op.request = 1; // Mark data as ready to be written
         }
+    } else {
+        critical_section_exit(&sd_ops_crit);
+        return;
     }
     critical_section_exit(&sd_ops_crit);
 
