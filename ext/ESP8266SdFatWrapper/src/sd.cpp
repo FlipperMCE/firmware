@@ -37,6 +37,21 @@ extern "C" void sd_init(bool reinit) {
 
 
         int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SD_PERIPH));
+
+        cid_t cid;
+        if (sd.card()->readCID(&cid)) {
+            DPRINTF("SD Card CID:\n");
+            DPRINTF(" Manufacturer ID: 0x%02X\n", cid.mid);
+            DPRINTF(" OEM ID: %.2s\n", cid.oid);
+            DPRINTF(" Product: %.5s\n", cid.pnm);
+            DPRINTF(" Revision: %d.%d\n", cid.prv_n, cid.prv_m);
+            DPRINTF(" Serial number: 0x%08X\n", cid.psn);
+            DPRINTF(" Manufacturing date: %02d/%04d\n",
+                cid.mdt_month, 2000 + ((cid.mdt_year_high << 4) | cid.mdt_year_low));
+        } else {
+            DPRINTF("failed to read CID\n");
+        }
+
         if (ret != 1) {
             if (sd.sdErrorCode()) {
                 fatal("failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());
