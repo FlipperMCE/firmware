@@ -28,6 +28,7 @@
 #include "input.h"
 #include "oled.h"
 
+#include "sd.h"
 #include "settings.h"
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
@@ -772,6 +773,9 @@ static void create_menu_screen(void) {
     lv_obj_t *info_page = ui_menu_subpage_create(menu, NULL);
     ui_header_create(info_page, "Info", false);
     {
+        sd_cid_t cid = sd_get_CID();
+        char text[32];
+
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Version");
         ui_label_create(cont, flippermce_version);
@@ -787,6 +791,24 @@ static void create_menu_screen(void) {
 #else
         ui_label_create(cont, "No");
 #endif
+
+        snprintf(text, sizeof(text), "%04X", cid.mid);
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "SD MID");
+        ui_label_create(cont, text);
+        memset(text, 0, sizeof(text));
+
+        snprintf(text, sizeof(text), "%02X%02X", cid.oid[0], cid.oid[1]);
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "SD OID");
+        ui_label_create(cont, text);
+        memset(text, 0, sizeof(text));
+
+        snprintf(text, sizeof(text), "%02d/%04d",
+            cid.mdt_month, 2000 + ((cid.mdt_year_high << 4) | cid.mdt_year_low));
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "SD Date");
+        ui_label_create(cont, text);
     }
 
     /* Main menu */

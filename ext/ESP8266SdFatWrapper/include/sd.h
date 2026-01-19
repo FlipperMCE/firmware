@@ -9,6 +9,28 @@
 #define SEEK_END 2
 
 
+typedef struct sd_cid_t {
+    /** Product Serial Number */
+    uint32_t psn;
+    /** Manufacturer ID */
+    uint8_t mid;
+    /** OEM/Application ID */
+    uint8_t oid[2];
+    /** Product Name */
+    uint8_t pnm[5];
+    /** Product Revision */
+    uint8_t prv;
+    /** Manufacturing Date Month */
+    uint8_t mdt_month : 4;
+    /** Manufacturing Date Year High Bits */
+    uint8_t mdt_year_high : 4;
+    /** Manufacturing Date Year Low Bits */
+    uint8_t mdt_year_low : 8;
+    /** not used always 1 */
+    uint8_t always1 : 1;
+    /** checksum */
+} sd_cid_t;
+
 void sd_init(bool reinit);
 void sd_unmount(void);
 int sd_open(const char *path, int oflag);
@@ -41,3 +63,5 @@ bool sd_write_sector(uint32_t sector, const uint8_t* src);
  * @return true if sync successful, false if error
  */
 bool sd_sync_cache(void);
+
+sd_cid_t sd_get_CID(void);
