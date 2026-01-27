@@ -350,13 +350,17 @@ static void evt_scr_main(lv_event_t *event) {
             lv_event_stop_bubbling(event);
             ui_state = UI_STATE_MENU;
         } else if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
-            switch (key) {
-                case INPUT_KEY_PREV: gc_mmceman_prev_ch(true); break;
-                case INPUT_KEY_NEXT: gc_mmceman_next_ch(true); break;
-                case INPUT_KEY_BACK: gc_mmceman_prev_idx(true); break;
-                case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
+            if (ui_state == UI_STATE_GAME_IMG) {
+                ui_state = UI_STATE_MAIN;
+            } else {
+                switch (key) {
+                    case INPUT_KEY_PREV: gc_mmceman_prev_ch(true); break;
+                    case INPUT_KEY_NEXT: gc_mmceman_next_ch(true); break;
+                    case INPUT_KEY_BACK: gc_mmceman_prev_idx(true); break;
+                    case INPUT_KEY_ENTER: gc_mmceman_next_idx(true); break;
+                }
+                ui_state = UI_STATE_MAIN;
             }
-            ui_state = UI_STATE_MAIN;
         }
         time_screen = time_us_64();
     }
