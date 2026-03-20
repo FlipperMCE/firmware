@@ -136,4 +136,4 @@ Within the wii System Menu, the card may occasionally not be recognized. If this
 - **sd2psXtd Team**: (you know who you are 😉 )
 - **8BitMods Team**: for helping out with card formatting and providing lots of other useful information for things like unlock ❤️
 - **@extrems**: For insights into EXI communications and libOGC2 SDK
-
+- **@niemasd**: For his [*GameDB-GC*](https://github.com/niemasd/GameDB-GC) database - Game naming and ID would not be possible without it! ❤️
