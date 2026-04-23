@@ -30,7 +30,10 @@ typedef struct {
     const char* name;
 } game_lookup;
 
+static char game_id_buffer[4U] = {0x00};
+static char game_id_region_buffer[3U] = {0x00};
 static game_lookup current_game;
+
 
 #pragma GCC diagnostic ignored "-Warray-bounds"
 static uint32_t game_db_char_array_to_uint32(const char in[4]) {
@@ -88,7 +91,29 @@ static game_lookup find_game_lookup(const char* game_id) {
             offset += 12;
         } while ((game.game_id != 0) && (offset < (size_t)db_size) && (ret.game_id == 0));
 
+        if (ret.game_id == 0) {
+            ret.game_id = numeric_id;
+            memcpy(game_id_buffer, game_id, 4);
+            ret.game_id_char = game_id_buffer;
+            switch (game_id[3]) {
+                case 'J':
+                    memcpy(game_id_region_buffer, "JPN", 3);
+                    break;
+                case 'E':
+                    memcpy(game_id_region_buffer, "USA", 3);
+                    break;
+                case 'P':
+                    memcpy(game_id_region_buffer, "EUR", 3);
+                    break;
+                default:
+                    memcpy(game_id_region_buffer, "UNK", 3);
+                    break;
+            }
+            ret.region = game_id_region_buffer;
+            ret.name = NULL;
+        }
     }
+
 
     return ret;
 }
@@ -125,6 +150,16 @@ void game_db_update_game(const char* const game_id) {
     current_game = find_game_lookup(game_id);
 }
 
+
+void game_db_set_game_name(const char* const game_name) {
+
+    printf("Setting game name: %s\n", game_name);
+    if ((current_game.game_id != 0) && ((current_game.name == NULL) || (current_game.name[0] == 0))) {
+        // Implementation for setting game name
+        current_game.name = game_name;
+    }
+}
+
 void game_db_extract_game_id(const char* const game_id, char* const game_id_out) {
     if ((strlen(game_id) == MAX_GAME_ID_LENGTH-1) && (memcmp(game_id, "DL-DOL", 6) == 0)) {
         memcpy(game_id_out, game_id + 7, 4);
@@ -142,6 +177,8 @@ void game_db_get_game_name(const char* game_id, char* game_name) {
     game_lookup lookup = find_game_lookup(game_id_out);
     if (lookup.name && lookup.name[0])
         strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
+    else
+        strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);
 
 }
 
