@@ -42,6 +42,7 @@ volatile uint8_t mmceman_mode;
 volatile uint16_t mmceman_cnum;
 
 char mmceman_gameid[251] = {0x00};
+char mmceman_game_name[64] = {0x00};
 static uint64_t mmceman_switching_timeout = 0;
 
 void gc_mmceman_task(void) {
@@ -73,8 +74,7 @@ void gc_mmceman_task(void) {
                 }
                 break;
 
-            case MMCEMAN_CMDS_SET_GAMEID:
-            {
+            case MMCEMAN_CMDS_SET_GAMEID:{
                 const char* game_id;
                 const char* region;
                 game_db_update_game(mmceman_gameid);
@@ -82,6 +82,15 @@ void gc_mmceman_task(void) {
                 log(LOG_INFO, "%s: game id %s\n", __func__, game_id);
                 gc_cardman_set_gameid(game_id, region);
                 log(LOG_INFO, "%s: set game id %s\n", __func__, game_id);
+            }
+            // intentional fallthrough, when game ID is set, game name will be updated later when the game name is received from the card
+            case MMCEMAN_CMDS_SET_GAMENAME: {
+                char game_name[64] = {0x00};
+                game_db_get_current_name(game_name);
+                if (!game_name[0] && mmceman_game_name[0]) {
+                    game_db_set_game_name((&mmceman_game_name));
+                    log(LOG_INFO, "%s: set game name %s\n", __func__, mmceman_game_name);
+                }
                 break;
             }
 
@@ -149,7 +158,21 @@ bool __time_critical_func(gc_mmceman_set_gameid)(const uint8_t* const game_id) {
         log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
         snprintf(mmceman_gameid, sizeof(mmceman_gameid), "%s", sanitized_game_id);
         mmceman_switching_timeout = 0U;
+        memset(mmceman_game_name, 0, sizeof(mmceman_game_name));
         mmceman_cmd = MMCEMAN_CMDS_SET_GAMEID;
+        ret = true;
+    }
+    return ret;
+}
+
+
+bool __time_critical_func(gc_mmceman_set_gamename)(const uint8_t* const game_name) {
+    bool ret = false;
+    log(LOG_INFO, "Game Name: %s\n", game_name);
+    if (game_name && game_name[0] != 0x00) {
+        snprintf(mmceman_game_name, sizeof(mmceman_game_name), "%s", game_name);
+        mmceman_switching_timeout = 0U;
+        mmceman_cmd = MMCEMAN_CMDS_SET_GAMENAME;
         ret = true;
     }
     return ret;

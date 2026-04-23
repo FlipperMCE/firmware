@@ -6,6 +6,7 @@
 #define MMCEMAN_CMDS_SET_CARD 0x4
 #define MMCEMAN_CMDS_SET_CHANNEL 0x6
 #define MMCEMAN_CMDS_SET_GAMEID 0x8
+#define MMCEMAN_CMDS_SET_GAMENAME 0x9
 #define MMCEMAN_CMDS_SET_ACCESS_MODE 0xA
 
 
@@ -36,6 +37,8 @@ void gc_mmceman_set_cb(void (*cb)(void));
 
 bool gc_mmceman_set_gameid(const uint8_t* game_id);
 const char* gc_mmceman_get_gameid(void);
+bool gc_mmceman_set_gamename(const uint8_t* const game_name);
+
 
 void gc_mmceman_next_ch(bool delay);
 void gc_mmceman_prev_ch(bool delay);
