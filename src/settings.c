@@ -65,7 +65,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
         && DIFFERS(value, ((_s->gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0))) {
         _s->gc_flags ^= SETTINGS_GC_FLAGS_GAME_ID;
     } else if (MATCH("GC", "Encoding")
-        && (strcmp(value, "JAP") != 0) != ((_s->gc_flags & SETTINGS_GC_FLAGS_ENC) > 0)) {
+        && (strcmp(value, "JAP") == 0) != ((_s->gc_flags & SETTINGS_GC_FLAGS_ENC) > 0)) {
         _s->gc_flags ^= SETTINGS_GC_FLAGS_ENC;
     } else if (MATCH("GC", "CardSize")) {
         int size = atoi(value);
@@ -143,7 +143,7 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = (size_t)snprintf(line_buffer, 256, "GameID=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
-        written = (size_t)snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_GAME_ID) > 0) ? "JAP" : "WORLD");
+        written = (size_t)snprintf(line_buffer, 256, "Encoding=%s\n", ((settings.gc_flags & SETTINGS_GC_FLAGS_ENC) > 0) ? "JAP" : "WORLD");
         sd_write(fd, line_buffer, written);
         written = (size_t)snprintf(line_buffer, 256, "CardSize=%u\n", settings.gc_cardsize);
         sd_write(fd, line_buffer, written);
