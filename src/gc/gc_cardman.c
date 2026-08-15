@@ -580,18 +580,26 @@ void gc_cardman_set_channel(uint16_t chan_num) {
 
 void gc_cardman_next_channel(void) {
     uint8_t max_chan = card_config_get_max_channels(folder_name, folder_name);
+    int old_chan = card_chan;
+    
     card_chan += 1;
     if (card_chan > max_chan)
         card_chan = CHAN_MIN;
-    needs_update = true;
+    
+    if (card_chan != old_chan)
+        needs_update = true;
 }
 
 void gc_cardman_prev_channel(void) {
     uint8_t max_chan = card_config_get_max_channels(folder_name, folder_name);
+    int old_chan = card_chan;
+    
     card_chan -= 1;
     if (card_chan < CHAN_MIN)
         card_chan = max_chan;
-    needs_update = true;
+   
+    if (card_chan != old_chan)
+        needs_update = true;
 }
 
 
